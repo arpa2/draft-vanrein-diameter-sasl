@@ -1,0 +1,546 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="rfc2629.xslt"?>
+<!DOCTYPE rfc SYSTEM "rfc2629.dtd">
+
+<?rfc toc="yes" ?>
+<?rfc compact="yes" ?>
+<?rfc symrefs="yes" ?>
+<?rfc subcompact="no" ?>
+<?rfc comments="yes" ?>
+<?rfc inline="yes" ?>
+
+<rfc ipr="trust200902" docName="draft-vanrein-diameter-sasl-00" category="std">
+
+<front>
+
+	<title abbrev="Diameter SASL">Diameter as a Carrier Protocol for SASL</title>
+
+	<author initials="R" surname="Van Rein" fullname="Rick van Rein">
+		<organization>ARPA2.net</organization>
+		<address>
+			<postal>
+				<street>Haarlebrink 5</street>
+				<city>Enschede</city>
+				<region>Overijssel</region>
+				<code>7544 WP</code>
+				<country>The Netherlands</country>
+			</postal>
+			<email>rick@openfortress.nl</email>
+		</address>
+	</author>
+
+	<date day="4" month="November" year="2018"/>
+
+	<abstract>
+	<t>Diameter is a scalable protocol to support authentication and
+	authorisation inquiries.  It handles a variety of challenge and
+	response types for applications such as network access.  For use
+	in application protocols, a different class of challenge and
+	response types are needed, most commonly captured in SASL.  This
+	specification allows SASL handshakes to be carried in Diameter
+	messages.</t>
+	</abstract>
+
+<!--
+
+CHANGES FROM 00 TO 01:
+
+-->
+
+</front>
+
+
+<middle>
+
+<section title="Introduction" anchor="intro">
+
+<t>SASL <xref target="RFC4422"/>
+is a general standard for inserting authentication and authorisation
+strings into protocols to alles clients to authenticate to servers.  The format
+is general, and indeed quite list of security mechanisms have been crafted to
+fit its shape.  SASL is also generic in terms of how it can be embedded into
+the protocols that desire authentication and authorisation, and again it is
+used in many protocols.</t>
+
+<t>Diameter, being targeted at authentication and authorisation, has never
+been setup with support for SASL.  This is perhaps because Diameter is often
+used with network-level access control, where the EAP protocol usually takes
+care of these tasks; SASL is mostly used with application protocols.  The
+design of Diameter however, is flexible enough to be very useful to this
+class of protocols as well.</t>
+
+<t>By carrying SASL in Diameter messages, a few interesting usage scenarios
+are enabled.  First, due to the ability to take SASL strings from one protocol
+and forward them in another, we can use Diameter as a connection to a backend
+service that conceals credentials from the applications that rely on them.
+In a variation on the first scenario, the second usage scenario addresses the
+domain of a user to validate against credentials held there.  We refer to
+that as BYOID, short for Bring Your Own IDentity.</t>
+
+<t>The general assumption for the use of SASL over Diameter is the
+following diagram, where the client enters a password to gain access
+to a server for an arbitrary application protocol, after which the
+server finds Diameter under the client's home domain through
+SRV records in DNS, and then uses those to connect to the backend
+authentication service.</t>
+<figure><artwork><![CDATA[
+   +--------+    SASL     +--------+    SASL    +---------+
+   | Client |-----------> | Server | ---------> | Backend |
+   +--------+  AppProto   +--------+  Diameter  +---------+
+       ||                     ||                    ||
+john@example.com        find SRV, TLSA          example.com
+  & credential            relay SASL          user validation
+]]></artwork></figure>
+
+</section>
+
+<section title="Embedding SASL in Diameter" anchor="spec">
+
+<t>SASL messages in Diameter use a number of AVPs that are
+defined for this purposes.  They occur in those combinations
+that are defined for SASL.</t>
+
+<section title="AVP Definitions for SASL" anchor="spec.avps">
+
+<t>These AVPs are added to the set that is used with the
+Network Access application, and can therefore be used in
+AA-Request and AA-Answer messages.  On top of that, the
+SASL-Mechanisms AVP may also occur in a Capabilities
+Exchange Answer.  The User-Name AVP MUST be supplied in
+the AA-Answer to inform the server about the user name
+that the backend decided on; the server MAY send a hint
+requesting a value in the User-Name AVP in the AA-Request.</t>
+
+<t>For each AVP, we provide an informal drawing of its
+contents; arrows indicate an impact on the contents and
+perhaps on presence; sides with a colon indicate optional
+parts of the AVP contents.  We provide an informal name
+and Data Format for each sub-field.  Precision is only
+found in the descriptive text.</t>
+
+<section title="SASL-Mechanisms" anchor="spec.avps.mech">
+
+<t>The SASL-Mechanisms AVP has AVP Code TBD1.</t>
+
+<t><figure><artwork><![CDATA[
++-----------------------------+
+|  mechanism(s) : UTF8String  |
++-----------------------------+
+]]></artwork></figure></t>
+
+<t>This AVP holds an ASCII string with zero or more names of
+SASL mechanisms, separated by one space.  Since spaces do not
+occur in SASL mechanism names, there is no need for escaping
+anything.</t>
+
+<t>When used to indicate that no mechanism is available,
+this field contains zero mechanisms names, or a zero-length
+string.  When used to indicate the choice of a mechanism,
+this field contains precisely one mechanism name.  When
+used to list optional mechanisms available, any number
+of mechanisms can be named, including none, one and more.</t>
+
+<t>The server MAY impose requirements on acceptable SASL
+mechanisms, to ensure a minimum security level.  If this
+is desired, the server MAY remove mechanisms from the
+list before it is presented to the client as part of the
+application protocol.  There will be many cases where the
+server refuses to accept the ANONYMOUS
+<xref target="RFC4505"/> mechanism; and it
+is also likely that PLAIN
+<xref target="RFC4616"/>
+and other weak methods are suppressed, or that only
+strong mechanisms such as SCRAM
+<xref target="RFC5802"/> <xref target="RFC7804"/>
+are accepted from the backend offering.  An empty set
+of mechanisms might result, and lead to the conclusion
+that no authentication is possible.</t>
+
+<t>The server may be in a position to authenticate the client
+on grounds of their application connection; usually, this will
+be the result of client credentials bound into the TLS
+exchange.  If this is the case, the server MAY ensure that the
+EXTERNAL mechanism is mentioned to the client and handle it
+locally without communication with the backend.</t>
+
+<t>The server may be in a position to provide ANONYMOUS
+<xref target="RFC4505"/>
+authentication; usually, this will be the case if application
+protocol can be serviced in a guest mode.  If this is the case,
+the server MAY ensure that the ANONYMOUS mechanism is mentioned
+to the client and handle it locally without communication with
+the backend.</t>
+
+</section>
+
+<section title="SASL-Encrypted-Token" anchor="spec.avps.token">
+
+<t>The SASL-Encrypted-Token AVP has AVP Code TBD2.</t>
+
+<t><figure><artwork><![CDATA[
++-------------------------+
+|   server : UTF8String   |
++-------------------------+
+|     0x00 : ASCII NUL    |
++-------------------------+
+|  enc-alg : UTF8String   |
++-------------------------+
+|     0x00 : ASCII NUL    |
++-------------------------+
+|   key-id : UTF8String   |
++-------------------------+
+|     0x00 : ASCII NUL    |
++-------------------------+
+|    token : OctetString  |
++-------------------------+
+]]></artwork></figure></t>
+
+<t>This AVP holds four strings, separated by ASCII NUL
+characters `\x00`.  The first three strings are UTF-8
+strings, prepared with SASLprep <xref target="RFC4103"/>;
+the last is an OctetString that holds the SASL token,
+usually in encrypted form.  All fields MAY be empty.
+As a result of these formatting requirements, the
+SASL-Encrypted-Token MUST contain at least three bytes
+valued 0x00.</t>
+
+<t>The server in the first string represents the name
+of the server.  This information MUST be made available
+in the first SASL-Encrypted-Token message from the
+client to the server.  It MAY be an empty string in any
+following messages.  For encryption algorithms with
+AEAD support, the suggested use is to include the
+server name in the MAC as additional data; in any other
+encryption algorithm the suggestion is to include
+the server name with a trailing ASCII NUL character
+`\x00` before the encrypted content, and to verify
+and remove it while decoding.</t>
+
+<t>The enc-alg in the second string selects the
+encryption algorithm by name.  This can be any form
+agreeable to both the client and the backend, but
+as an informative suggestion the encryption type
+names for Kerberos <xref target="RFC4120"/>
+may be used; most SASL
+implementations have access to a Kerberos5
+implementation and may be able to use those.
+It is also the most likely candidate to allow
+for generic pluggability between client and
+server software from different vendors.</t>
+
+<t>The key-id in the third string indicates the
+key instance to use.  Any local standard can be
+used, but as an informative suggestions a
+UUID in textual lowercase form may be considered.</t>
+
+<t>The token in the fourth string would normally
+be encrypted with the indicated encryption algorithm
+using the identified key.  The octet string holds
+the literal output from the encryption algorithm,
+applied to the literal SASL token as agreed by
+the mechanism.  The enc-alg and key-id need not be
+repeated in follow-up messages, and are assumed to
+be retained on the Diameter server, or stored in
+the State that the Diameter client is supposed to
+replicate in follow-ups.  Some protocols will map
+these strings to a representation such as base64,
+but for the 8-bit clean form of an OctetString
+in Diameter this shall not be done.</t>
+
+<t>The fourth string usually holds a challenge string
+when it is part of an AA-Answer, and mostly a response
+string when it is part of an AA-Request.</t>
+
+<t>The anticipated use of encryption is based on stored
+secrets, possibly protected by a login password.  This
+is not the same as authentication, because it has no
+user-controllable start and end.  Encryption is about
+holding something (namely the client's terminal)
+that others like the server cannot use; authentication
+is knowing something (namely the credential).  This
+distinction may also be supportive of use of the same
+encryption key and algorithm over multiple users;
+and that includes pseudonyms of one user.</t>
+
+</section>
+
+<section title="SASL-Channel-Binding" anchor="spec.avps.chanbind">
+
+<t>The SASL-Channel-Binding AVP has AVP Code TBD3.</t>
+
+<t><figure><artwork><![CDATA[
++---------------------------+
+|  iniadrtyp : Unsigned32   | -------+
++---------------------------+        |
+|  iniadrlen : Unsigned32   | -------+
++---------------------------+        |
+|  accadrtyp : Unsigned32   | ---+   |
++---------------------------+    |   |
+|  accadrlen : Unsigned32   | ---+   |
++---------------------------+    |   |
+:     iniadr : OctetString  : <--|---+
++---------------------------+    |
+:     accadr : OctetString  : <--+
++---------------------------+
+:    nameval : OctetString  :
++---------------------------+
+]]></artwork></figure></t>
+
+<t>This AVP provides information about SASL channel binding.
+It indicates whether this information MUST or MAY be taken
+into account.  Normally, channel binding information should
+be sourced from the underlying communications channel, but
+this information is not available to backend running Diameter.
+What will work however, is if a relying party supplies such
+information to the backend to which the decision is delegated.</t>
+
+<t>Through this facilitation, Diameter is able to service as a
+backend authenticator.  It can also be used across realms,
+because no service is offered, other than informing about
+acceptance or rejection and possible some variables explaining
+why or how.  Alternative backends that run application protocols
+such as LDAP or IMAP are not suitable during realm crossover,
+because they actually provide access to a service and data.
+Diameter's simple acceptance or rejection does not.</t>
+
+<t>Channel binding information <xref target="RFC5554"/>
+<xref target="RFC5801"/>
+is generally described as:
+<list style="hanging" hangIndent="6">
+<t hangText="name">consisting of US-ASCII alphanumerics,
+	dot and dash [Section 7 of <xref target="RFC5056"/>];</t>
+<t hangText="value">the byte string with the values
+	whose interpretation is decided by the name;</t>
+<t hangText="address types">for both ends of a connection
+	[Section 3.11 of <xref target="RFC2744"/>] with
+	a skipping value GSS_C_AF_NULLADDR;</t>
+<t hangText="address">for each end.</t>
+</list>
+These fields belong together; they are concatenated into
+the SASL-Channel-Binding AVP as follows (where integers
+are 32-bit unsigned in big-endian order):
+<list style="symbols">
+<t hangText="iniadrtyp"> is an integer holding the type
+	of the initiator address as used in GSS-API
+	<xref target="RFC2744"/>;
+	the value GSS_C_AF_NULLADDR may be used to
+	explicitly indicate that this address is not
+	available for channel binding;</t>
+<t hangText="accadrtyp"> is an integer holding the type
+	of the acceptor address as used in GSS-API;
+	the value GSS_C_AF_NULLADDR may be used to
+	explicitly inidicate that this address is not
+	available for channel binding;</t>
+<t hangText="iniadrlen"> is the integer length of the address
+	information of the initiator of the session being
+	verified; this field MUST be set to 0 when
+	iniadrtype is set to GCC_C_AF_NULLADDR;</t>
+<t hangText="accadrlen"> is the integer length of the address
+	information of the acceptor of the session being
+	verified; this field MUST be set to 0 when
+	accadrtype is set to GCC_C_AF_NULLADDR;</t>
+<t hangText="iniadr"> is the address of the initiator,
+	represented as a sequence of bytes interpreted
+	according to iniaddrtyp by Diameter and GSS-API
+	but treated as opaque binaries during transport;
+	this field MUST occupy the number of bytes that
+	are declared in iniadrlen, and it MAY therefore
+	be empty;</t>
+<t hangText="accadr"> is the address of the acceptor,
+	represented as a sequence of bytes interpreted
+	according to accaddrtyp by Diameter and GSS-API
+	but treated as opaque binaries during transport;
+	this field MUST occupy the number of bytes that
+	are declared in accadrlen, and it MAY therefore
+	be empty;</t>
+<t hangText="nameval"> selects and holds the binary value
+	of a channel binding method that incorporates,
+	for instance, an underlying secure channel
+	through its cryptographic summary; this field
+	is optional and so it may be empty; if it is
+	not empty, the contents are the name as specified
+	above, followed by an ASCII NUL character '\x00'
+	and then the value as specified above; in light
+	of this last part, this entire field must be
+	considered as an opaque binary during transport.</t>
+</list>
+Note how each of the components can be explicitly denied;
+this can be used by a relying server to suppress certain
+fields from being permitted in channel binding.  It is
+generally assumed that the trusting server and its client
+have a way of negotiating the form of channel binding to
+be used.  When unsure, a relying server may offer more than
+one SASL-Channel-Binding AVP and Diameter shall treat these
+as alternatives.  Note however, that not all SASL mechanisms
+can handle concurrent alternatives, and that security sanity
+should impose an upper limit to any such facilitation.</t>
+
+</section>
+
+</section>
+
+<section title="Server Name Binding" anchor="spec.namebind">
+
+<t>Due to the use of a backend server, normal channel binding
+conditions do not apply.  To still be able to support binding
+to secure channels, the SASL-Channel-Binding AVP allows the
+transfer of this information to the backend, which would not
+otherwise be aware of it.  This enables the SASL exchange to
+include this information, where client and server pass it
+to the backend over their individual channels.</t>
+
+<t>Applications that use Diameter in the backend differ from
+traditional SASL applications by their interpretation of the
+AT character U+0040 in the user name, and using it to forward
+the name to a backend.  When this practice is followed in a
+realm, it is strongly advised that it adheres to this section,
+though it is formally a local policy and therefore this section
+is informative in nature.</t>
+
+<t>Server names are important, and should be incorporated
+in much the same fashion as channel binding.  The intention
+is to allow side-tracking of authentication information to
+other services, either under same or different operational
+control.  Such practices might lead to abusive services
+luring users into credential use and secretly using it to
+attack another part of a user's service pallette.  The
+solution is quite simply to scatter the credentials of the
+user.  This is why SASL-Encrypted-Token incorporates the
+server name, and uses it to scatter the encryption
+scheme.</t>
+
+<t>The Diameter backend receives the server name
+and should use it to get assurance of its
+incoming connection as related to the server name.  It
+can find assurance in DNS, where information SHOULD be
+protected with DNSSEC.  The use of an SRV record for
+the server's Diameter information [TODO:server2realm]
+is desired, followed by TLSA lookups to perform DANE
+validation.</t>
+
+<t>It may seem simpler to validate the TLS certificate
+<xref target="RFC5929"/>
+itself, and demanding that the same be used towards the
+client as to the Diameter backend.  This does not
+scale up well however.  Specifically large infrastructures
+may prefer to bundle Diameter connections so they can
+collate traffic to paired realms into a bulk channel.</t>
+
+</section>
+
+</section>
+
+<section title="Security Considerations">
+
+<t>SASL is designed for direct use between a client and a server,
+but as clients rarely feel the need to login to Diameter, the reason
+will usually be an intermediate server passing SASL traffic to its
+backend.  This is not always a safe idea; the server is a
+man-in-the-middle and the SASL mechanisms are at least at risk of
+being attacked by this middle man.</t>
+
+<t>This middle man may not be a problem if the server and Diameter
+backend fall under the same operational control.  It may also not
+be a problem if the server is part of a contractual arrangement
+with the client.  Finally, it may be a tolerable risk if the
+server is operated in a jurisdiction where cracking of SASL
+algorithms is considered as illegal as breaking into a home,
+both when this is done by private and public parties.</t>
+
+<t>In all other cases, end-to-end encryption of the SASL tokens
+between client and server is required.  The quality of protection
+then rests with the encryption standard.  This specification does
+not choose an algorithm, key management standards or otherwise,
+but refers to the vast body of general knowledge on this.  Doing
+this properly can easily be effective in mitigating the risks of
+the known middle-man.</t>
+
+<t>An additional concern caused by the middle-man is that it
+does not become a switching point between use and abuse.  To
+mitigate this risk, its server name MUST be validated.  This
+can be done with the credentials obtained from the Diameter
+connection.  TLS Certificates may be checked with DANE, to be
+concrete.  Without this, a rogue server might repeatedly make
+inquiries with the SASL backend, claiming to be a reliable
+server, until it finds a password.</t>
+
+</section>
+
+<section title="IANA Considerations">
+
+<t>This specification defines three AVP Codes for use with Diameter.
+IANA registers the following AVP Codes for them in the
+"Authentication, Authorization, and Accounting (AAA) Parameters" registry:
+<figure><artwork><![CDATA[
+AVP Code | Attribute Name       | Reference
+---------+----------------------+------------
+TBD1     | SASL-Mechanisms      | (this spec)
+TBD2     | SASL-Encrypted-Token | (this spec)
+TBD3     | SASL-Channel-Binding | (this spec)
+]]></artwork></figure></t>
+
+</section>
+
+</middle>
+
+<back>
+
+<references title="Normative References">
+<!--
+<?rfc include="reference.RFC.2616.xml"?>
+-->
+<?rfc include="reference.RFC.2744.xml"?>
+<?rfc include="reference.RFC.4103.xml"?>
+<?rfc include="reference.RFC.4120.xml"?>
+<!--
+<?rfc include="reference.RFC.4559.xml"?>
+-->
+<?rfc include="reference.RFC.4422.xml"?>
+<?rfc include="reference.RFC.5056.xml"?>
+<?rfc include="reference.RFC.5554.xml"?>
+<!--
+<?rfc include="reference.RFC.5746.xml"?>
+-->
+<?rfc include="reference.RFC.5801.xml"?>
+<?rfc include="reference.RFC.5929.xml"?>
+<!--
+<?rfc include="reference.RFC.6595.xml"?>
+<?rfc include="reference.RFC.7235.xml"?>
+<?rfc include="reference.RFC.7615.xml"?>
+<?rfc include="reference.RFC.7627.xml"?>
+<?rfc include="reference.RFC.2617.xml"?>
+-->
+<!--
+<reference title="RESTful" href="http://restcookbook.com/HTTP%20Methods/put-vs-post/"/>
+-->
+</references>
+
+<references title="Informative References">
+<?rfc include="reference.RFC.4505.xml"?>
+<?rfc include="reference.RFC.4616.xml"?>
+<!--
+<?rfc include="reference.RFC.5785.xml"?>
+-->
+<?rfc include="reference.RFC.5802.xml"?>
+<?rfc include="reference.RFC.7804.xml"?>
+<!--
+<?rfc include="reference.I-D.vanrein-dnstxt-krb1.xml"?>
+-->
+</references>
+
+<section title="Diameter Message Examples" anchor="examples">
+
+<t>This section is non-normative.  It shows a number of examples of
+SASL exchanges over Diameter.</t>
+</section>
+
+<section title="Acknowledgements" anchor="ack">
+
+<t>Thanks go to TODO for useful discussions during the creation of this
+document.</t>
+
+</section>
+
+</back>
+
+</rfc>

@@ -1,0 +1,737 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" 
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head profile="http://www.w3.org/2006/03/hcard http://dublincore.org/documents/2008/08/04/dc-html/">
+  <meta http-equiv="Content-Type" content="text/html; charset=us-ascii" />
+
+  <title>Realm Crossover for SASL via Diameter</title>
+
+  <style type="text/css" title="Xml2Rfc (sans serif)">
+  /*<![CDATA[*/
+	  a {
+	  text-decoration: none;
+	  }
+      /* info code from SantaKlauss at http://www.madaboutstyle.com/tooltip2.html */
+      a.info {
+          /* This is the key. */
+          position: relative;
+          z-index: 24;
+          text-decoration: none;
+      }
+      a.info:hover {
+          z-index: 25;
+          color: #FFF; background-color: #900;
+      }
+      a.info span { display: none; }
+      a.info:hover span.info {
+          /* The span will display just on :hover state. */
+          display: block;
+          position: absolute;
+          font-size: smaller;
+          top: 2em; left: -5em; width: 15em;
+          padding: 2px; border: 1px solid #333;
+          color: #900; background-color: #EEE;
+          text-align: left;
+      }
+	  a.smpl {
+	  color: black;
+	  }
+	  a:hover {
+	  text-decoration: underline;
+	  }
+	  a:active {
+	  text-decoration: underline;
+	  }
+	  address {
+	  margin-top: 1em;
+	  margin-left: 2em;
+	  font-style: normal;
+	  }
+	  body {
+	  color: black;
+	  font-family: verdana, helvetica, arial, sans-serif;
+	  font-size: 10pt;
+	  max-width: 55em;
+	  
+	  }
+	  cite {
+	  font-style: normal;
+	  }
+	  dd {
+	  margin-right: 2em;
+	  }
+	  dl {
+	  margin-left: 2em;
+	  }
+	
+	  ul.empty {
+	  list-style-type: none;
+	  }
+	  ul.empty li {
+	  margin-top: .5em;
+	  }
+	  dl p {
+	  margin-left: 0em;
+	  }
+	  dt {
+	  margin-top: .5em;
+	  }
+	  h1 {
+	  font-size: 14pt;
+	  line-height: 21pt;
+	  page-break-after: avoid;
+	  }
+	  h1.np {
+	  page-break-before: always;
+	  }
+	  h1 a {
+	  color: #333333;
+	  }
+	  h2 {
+	  font-size: 12pt;
+	  line-height: 15pt;
+	  page-break-after: avoid;
+	  }
+	  h3, h4, h5, h6 {
+	  font-size: 10pt;
+	  page-break-after: avoid;
+	  }
+	  h2 a, h3 a, h4 a, h5 a, h6 a {
+	  color: black;
+	  }
+	  img {
+	  margin-left: 3em;
+	  }
+	  li {
+	  margin-left: 2em;
+	  margin-right: 2em;
+	  }
+	  ol {
+	  margin-left: 2em;
+	  margin-right: 2em;
+	  }
+	  ol p {
+	  margin-left: 0em;
+	  }
+	  p {
+	  margin-left: 2em;
+	  margin-right: 2em;
+	  }
+	  pre {
+	  margin-left: 3em;
+	  background-color: lightyellow;
+	  padding: .25em;
+	  }
+	  pre.text2 {
+	  border-style: dotted;
+	  border-width: 1px;
+	  background-color: #f0f0f0;
+	  width: 69em;
+	  }
+	  pre.inline {
+	  background-color: white;
+	  padding: 0em;
+	  }
+	  pre.text {
+	  border-style: dotted;
+	  border-width: 1px;
+	  background-color: #f8f8f8;
+	  width: 69em;
+	  }
+	  pre.drawing {
+	  border-style: solid;
+	  border-width: 1px;
+	  background-color: #f8f8f8;
+	  padding: 2em;
+	  }
+	  table {
+	  margin-left: 2em;
+	  }
+	  table.tt {
+	  vertical-align: top;
+	  }
+	  table.full {
+	  border-style: outset;
+	  border-width: 1px;
+	  }
+	  table.headers {
+	  border-style: outset;
+	  border-width: 1px;
+	  }
+	  table.tt td {
+	  vertical-align: top;
+	  }
+	  table.full td {
+	  border-style: inset;
+	  border-width: 1px;
+	  }
+	  table.tt th {
+	  vertical-align: top;
+	  }
+	  table.full th {
+	  border-style: inset;
+	  border-width: 1px;
+	  }
+	  table.headers th {
+	  border-style: none none inset none;
+	  border-width: 1px;
+	  }
+	  table.left {
+	  margin-right: auto;
+	  }
+	  table.right {
+	  margin-left: auto;
+	  }
+	  table.center {
+	  margin-left: auto;
+	  margin-right: auto;
+	  }
+	  caption {
+	  caption-side: bottom;
+	  font-weight: bold;
+	  font-size: 9pt;
+	  margin-top: .5em;
+	  }
+	
+	  table.header {
+	  border-spacing: 1px;
+	  width: 95%;
+	  font-size: 10pt;
+	  color: white;
+	  }
+	  td.top {
+	  vertical-align: top;
+	  }
+	  td.topnowrap {
+	  vertical-align: top;
+	  white-space: nowrap; 
+	  }
+	  table.header td {
+	  background-color: gray;
+	  width: 50%;
+	  }
+	  table.header a {
+	  color: white;
+	  }
+	  td.reference {
+	  vertical-align: top;
+	  white-space: nowrap;
+	  padding-right: 1em;
+	  }
+	  thead {
+	  display:table-header-group;
+	  }
+	  ul.toc, ul.toc ul {
+	  list-style: none;
+	  margin-left: 1.5em;
+	  margin-right: 0em;
+	  padding-left: 0em;
+	  }
+	  ul.toc li {
+	  line-height: 150%;
+	  font-weight: bold;
+	  font-size: 10pt;
+	  margin-left: 0em;
+	  margin-right: 0em;
+	  }
+	  ul.toc li li {
+	  line-height: normal;
+	  font-weight: normal;
+	  font-size: 9pt;
+	  margin-left: 0em;
+	  margin-right: 0em;
+	  }
+	  li.excluded {
+	  font-size: 0pt;
+	  }
+	  ul p {
+	  margin-left: 0em;
+	  }
+	
+	  .comment {
+	  background-color: yellow;
+	  }
+	  .center {
+	  text-align: center;
+	  }
+	  .error {
+	  color: red;
+	  font-style: italic;
+	  font-weight: bold;
+	  }
+	  .figure {
+	  font-weight: bold;
+	  text-align: center;
+	  font-size: 9pt;
+	  }
+	  .filename {
+	  color: #333333;
+	  font-weight: bold;
+	  font-size: 12pt;
+	  line-height: 21pt;
+	  text-align: center;
+	  }
+	  .fn {
+	  font-weight: bold;
+	  }
+	  .hidden {
+	  display: none;
+	  }
+	  .left {
+	  text-align: left;
+	  }
+	  .right {
+	  text-align: right;
+	  }
+	  .title {
+	  color: #990000;
+	  font-size: 18pt;
+	  line-height: 18pt;
+	  font-weight: bold;
+	  text-align: center;
+	  margin-top: 36pt;
+	  }
+	  .vcardline {
+	  display: block;
+	  }
+	  .warning {
+	  font-size: 14pt;
+	  background-color: yellow;
+	  }
+	
+	
+	  @media print {
+	  .noprint {
+		display: none;
+	  }
+	
+	  a {
+		color: black;
+		text-decoration: none;
+	  }
+	
+	  table.header {
+		width: 90%;
+	  }
+	
+	  td.header {
+		width: 50%;
+		color: black;
+		background-color: white;
+		vertical-align: top;
+		font-size: 12pt;
+	  }
+	
+	  ul.toc a::after {
+		content: leader('.') target-counter(attr(href), page);
+	  }
+	
+	  ul.ind li li a {
+		content: target-counter(attr(href), page);
+	  }
+	
+	  .print2col {
+		column-count: 2;
+		-moz-column-count: 2;
+		column-fill: auto;
+	  }
+	  }
+	
+	  @page {
+	  @top-left {
+		   content: "Internet-Draft"; 
+	  } 
+	  @top-right {
+		   content: "December 2010"; 
+	  } 
+	  @top-center {
+		   content: "Abbreviated Title";
+	  } 
+	  @bottom-left {
+		   content: "Doe"; 
+	  } 
+	  @bottom-center {
+		   content: "Expires June 2011"; 
+	  } 
+	  @bottom-right {
+		   content: "[Page " counter(page) "]"; 
+	  } 
+	  }
+	
+	  @page:first { 
+		@top-left {
+		  content: normal;
+		}
+		@top-right {
+		  content: normal;
+		}
+		@top-center {
+		  content: normal;
+		}
+	  }
+  /*]]>*/
+  </style>
+
+  <link href="#rfc.toc" rel="Contents"/>
+<link href="#rfc.section.1" rel="Chapter" title="1 Introduction"/>
+<link href="#rfc.section.2" rel="Chapter" title="2 The SASL crossover mechanism SXOVER"/>
+<link href="#rfc.section.2.1" rel="Chapter" title="2.1 SXOVER initial response"/>
+<link href="#rfc.section.2.2" rel="Chapter" title="2.2 SXOVER initial challenge"/>
+<link href="#rfc.section.2.3" rel="Chapter" title="2.3 SXOVER responses"/>
+<link href="#rfc.section.2.4" rel="Chapter" title="2.4 SXOVER challenges"/>
+<link href="#rfc.section.3" rel="Chapter" title="3 Embedding SASL in Diameter"/>
+<link href="#rfc.section.3.1" rel="Chapter" title="3.1 AVP Definitions for SASL"/>
+<link href="#rfc.section.3.1.1" rel="Chapter" title="3.1.1 SASL-Mechanism"/>
+<link href="#rfc.section.3.1.2" rel="Chapter" title="3.1.2 SASL-Token"/>
+<link href="#rfc.section.3.1.3" rel="Chapter" title="3.1.3 SASL-Channel-Binding"/>
+<link href="#rfc.section.4" rel="Chapter" title="4 Running Diameter as a SASL Backend"/>
+<link href="#rfc.section.4.1" rel="Chapter" title="4.1 Diameter is an SCTP service"/>
+<link href="#rfc.section.4.2" rel="Chapter" title="4.2 Reliance on DANE and DNSSEC"/>
+<link href="#rfc.section.4.3" rel="Chapter" title="4.3 Foreign Service SASL Mechanisms"/>
+<link href="#rfc.section.5" rel="Chapter" title="5 Security Considerations"/>
+<link href="#rfc.section.6" rel="Chapter" title="6 IANA Considerations"/>
+<link href="#rfc.references" rel="Chapter" title="7 References"/>
+<link href="#rfc.references.1" rel="Chapter" title="7.1 Normative References"/>
+<link href="#rfc.references.2" rel="Chapter" title="7.2 Informative References"/>
+<link href="#rfc.appendix.A" rel="Chapter" title="A Acknowledgements"/>
+<link href="#rfc.authors" rel="Chapter"/>
+
+
+  <meta name="generator" content="xml2rfc version 2.5.1 - http://tools.ietf.org/tools/xml2rfc" />
+  <link rel="schema.dct" href="http://purl.org/dc/terms/" />
+
+  <meta name="dct.creator" content="Van Rein, R." />
+  <meta name="dct.identifier" content="urn:ietf:id:draft-vanrein-diameter-sasl-02" />
+  <meta name="dct.issued" scheme="ISO8601" content="2019-5-25" />
+  <meta name="dct.abstract" content="SASL is used for authentication in many application protocols.  This specification extends it to allow credentials from a home realm to be used against external services.  To this end, it introduces a secure end-to-end wrapper for SASL traffic and a link back from to the home realm based on Diameter." />
+  <meta name="description" content="SASL is used for authentication in many application protocols.  This specification extends it to allow credentials from a home realm to be used against external services.  To this end, it introduces a secure end-to-end wrapper for SASL traffic and a link back from to the home realm based on Diameter." />
+
+</head>
+
+<body>
+
+  <table class="header">
+    <tbody>
+    
+    	<tr>
+  <td class="left">Network Working Group</td>
+  <td class="right">R. Van Rein</td>
+</tr>
+<tr>
+  <td class="left">Internet-Draft</td>
+  <td class="right">ARPA2.net</td>
+</tr>
+<tr>
+  <td class="left">Intended status: Standards Track</td>
+  <td class="right">May 25, 2019</td>
+</tr>
+<tr>
+  <td class="left">Expires: November 26, 2019</td>
+  <td class="right"></td>
+</tr>
+
+    	
+    </tbody>
+  </table>
+
+  <p class="title">Realm Crossover for SASL via Diameter<br />
+  <span class="filename">draft-vanrein-diameter-sasl-02</span></p>
+  
+  <h1 id="rfc.abstract">
+  <a href="#rfc.abstract">Abstract</a>
+</h1>
+<p>SASL is used for authentication in many application protocols.  This specification extends it to allow credentials from a home realm to be used against external services.  To this end, it introduces a secure end-to-end wrapper for SASL traffic and a link back from to the home realm based on Diameter.</p>
+<h1 id="rfc.status">
+  <a href="#rfc.status">Status of This Memo</a>
+</h1>
+<p>This Internet-Draft is submitted in full conformance with the provisions of BCP 78 and BCP 79.</p>
+<p>Internet-Drafts are working documents of the Internet Engineering Task Force (IETF).  Note that other groups may also distribute working documents as Internet-Drafts.  The list of current Internet-Drafts is at http://datatracker.ietf.org/drafts/current/.</p>
+<p>Internet-Drafts are draft documents valid for a maximum of six months and may be updated, replaced, or obsoleted by other documents at any time.  It is inappropriate to use Internet-Drafts as reference material or to cite them other than as "work in progress."</p>
+<p>This Internet-Draft will expire on November 26, 2019.</p>
+<h1 id="rfc.copyrightnotice">
+  <a href="#rfc.copyrightnotice">Copyright Notice</a>
+</h1>
+<p>Copyright (c) 2019 IETF Trust and the persons identified as the document authors.  All rights reserved.</p>
+<p>This document is subject to BCP 78 and the IETF Trust's Legal Provisions Relating to IETF Documents (http://trustee.ietf.org/license-info) in effect on the date of publication of this document.  Please review these documents carefully, as they describe your rights and restrictions with respect to this document.  Code Components extracted from this document must include Simplified BSD License text as described in Section 4.e of the Trust Legal Provisions and are provided without warranty as described in the Simplified BSD License.</p>
+
+  
+  <hr class="noprint" />
+  <h1 class="np" id="rfc.toc"><a href="#rfc.toc">Table of Contents</a></h1>
+  <ul class="toc">
+
+  	<li>1.   <a href="#rfc.section.1">Introduction</a></li>
+<li>2.   <a href="#rfc.section.2">The SASL crossover mechanism SXOVER</a></li>
+<ul><li>2.1.   <a href="#rfc.section.2.1">SXOVER initial response</a></li>
+<li>2.2.   <a href="#rfc.section.2.2">SXOVER initial challenge</a></li>
+<li>2.3.   <a href="#rfc.section.2.3">SXOVER responses</a></li>
+<li>2.4.   <a href="#rfc.section.2.4">SXOVER challenges</a></li>
+</ul><li>3.   <a href="#rfc.section.3">Embedding SASL in Diameter</a></li>
+<ul><li>3.1.   <a href="#rfc.section.3.1">AVP Definitions for SASL</a></li>
+<ul><li>3.1.1.   <a href="#rfc.section.3.1.1">SASL-Mechanism</a></li>
+<li>3.1.2.   <a href="#rfc.section.3.1.2">SASL-Token</a></li>
+<li>3.1.3.   <a href="#rfc.section.3.1.3">SASL-Channel-Binding</a></li>
+</ul></ul><li>4.   <a href="#rfc.section.4">Running Diameter as a SASL Backend</a></li>
+<ul><li>4.1.   <a href="#rfc.section.4.1">Diameter is an SCTP service</a></li>
+<li>4.2.   <a href="#rfc.section.4.2">Reliance on DANE and DNSSEC</a></li>
+<li>4.3.   <a href="#rfc.section.4.3">Foreign Service SASL Mechanisms</a></li>
+</ul><li>5.   <a href="#rfc.section.5">Security Considerations</a></li>
+<li>6.   <a href="#rfc.section.6">IANA Considerations</a></li>
+<li>7.   <a href="#rfc.references">References</a></li>
+<ul><li>7.1.   <a href="#rfc.references.1">Normative References</a></li>
+<li>7.2.   <a href="#rfc.references.2">Informative References</a></li>
+</ul><li>Appendix A.   <a href="#rfc.appendix.A">Acknowledgements</a></li>
+<li><a href="#rfc.authors">Author's Address</a></li>
+
+
+  </ul>
+
+  <h1 id="rfc.section.1"><a href="#rfc.section.1">1.</a> <a href="#intro" id="intro">Introduction</a></h1>
+<p id="rfc.section.1.p.1">It is common for Internet users to combine services from a varierity of providers.  Along with this, an ad hoc practice has arisen of using the local identity schemes of these providers.  These are not integrated, and the practice tends to reduce the control of users over their online identity.  A solution to this is generic support for realm crossover, where an externally acquired service can make a callback to a home realm to authenticate a user's identity and use that for service-specific authorisation.</p>
+<p id="rfc.section.1.p.2">SASL <a href="#RFC4422">[RFC4422]</a> is instrumental in authentication across a wide range of application protocols; it allows those protocols to abstract from the actual authentication mechanisms, and at the same time it allows authentication mechanisms to not be concerned about the application protocol.  SASL can easily be funneled from one protocol into another, modulo a number of security concerns.</p>
+<p id="rfc.section.1.p.3">Diameter and its Network Access application are instrumental in authenticating a user under a realm, while not providing the resources that an application protocol would imply.  Moreover, Diameter service can be declared under a domain name in a manner that is standardised, scalable and secure.</p>
+<pre>
+   +--------+    SASL     +--------+    SASL    +---------+
+   | Client |-----------&gt; | Server | ---------&gt; |  Realm  |
+   +--------+  AppProto   +--------+  Diameter  +---------+
+       ||                     ||                    ||
+john@example.com        find SRV, TLSA          example.com
+  &amp; credential            relay SASL           authentication
+</pre>
+<p id="rfc.section.1.p.4">This allows a foreign server to authenticate a client to authenticate with its home realm: </p>
+<p id="rfc.section.1.p.5">Diameter can send a mere notification of authentication, and the foreign server can use DANE <a href="#RFC6698">[RFC6698]</a> to validate the origin of these notification.  Diameter in the foreign server will authenticate to the home realm, which may then decide to add resources beyond the basic notification of authentication.</p>
+<p id="rfc.section.1.p.6">SASL mechanisms are not generally protected against attacks by men in the middle named Eve.  This is usually compensated for by wrapping the application protocol in TLS, but since that would only protect one leg of the intended realm crossover, this raises a need for end-to-end encryption.  This can be established along with other credentials for the home realm, but an end-to-end mechanism needs to be defined.  This specification introduces a wrapper for that pupose, and nests a SASL exchange with the home realm under its cloak.</p>
+<p id="rfc.section.1.p.7">Finally, to avoid the use of one authentication exchange to validate another, it is advisable to incorporate channel binding <a href="#RFC5056">[RFC5056]</a> <a href="#RFC5801">[RFC5801]</a> when making use of backends.  When passing SASL tokens between application protocol and Diameter backend, the channel binding information from the application protocol would be supplied as a side-note to the Diameter backcall.</p>
+<h1 id="rfc.section.2"><a href="#rfc.section.2">2.</a> <a href="#sxover" id="sxover">The SASL crossover mechanism SXOVER</a></h1>
+<p id="rfc.section.2.p.1">SXOVER is a SASL authentication mechanism that encrypts all information between a SASL client and SASL server, except for the realm name to which they direct the authentication.  The realm can be used by an foreign server to redirect SXOVER to a home realm, for instance using Diameter.  SXOVER does not reveal success or failure to this foreign server, but Diameter would release this information in a manner that requires no knowledge of the SASL exchange.</p>
+<p id="rfc.section.2.p.2">The first SXOVER message supplies a session key to the SASL server.  The server responds with a list of SASL mechanisms to be used under the cloak of the session key.  Then, the client selects a mechanism and the customary exchange follows, but under protection of the session key.</p>
+<p id="rfc.section.2.p.3">Certain information in SXOVER is encrypted with the encrypt operation [Section 3 of <a href="#RFC3961">[RFC3961]</a>] with default initial state; this always includes integrity protection.  The value for key usage is KIP_KEYUSAGE_MAPPING or 1864 for the long-term key and KIP_KEYUSAGE_USERDATA of 1863 for the session key; these values and the formats exchanged are compatible with the Keyful Identity Protocol, which may or may not develop independently of SXOVER.</p>
+<h1 id="rfc.section.2.1"><a href="#rfc.section.2.1">2.1.</a> <a href="#sxover-iniresp" id="sxover-iniresp">SXOVER initial response</a></h1>
+<pre>
+SXOVER-Initial-Response ::= SEQUENCE {
+   realm    IA5String,     -- Lowercase domain name, no trailing dot
+   inictr   Counter,       -- Initial counter value
+   keyno    KeyNumber,     -- With realm and encalg, identifies...
+   encalg   EncryptAlg,    -- ...the key for svckeymud decryption
+   seskey   OCTET STRING   -- RFC 3961 encrypted, key usage 1864
+}
+
+Counter ::= INTEGER (0..4294967295)             -- Unsigned 32-bit
+KeyNumber ::= INTEGER (0..4294967295)           -- Unsigned 32-bit
+EncryptAlg ::= INTEGER (-2147483648..2147483647)  -- Signed 32-bit
+</pre>
+<p id="rfc.section.2.1.p.1">The SXOVER exchange starts with an initial response message, traveling along the selection of SXOVER as the SASL mechanism.  This initial response contains the following: </p>
+<p id="rfc.section.2.1.p.2">The one value of interest to the foreign server is the realm, which it needs to determine the home realm of the client.  It finds the Diameter service underneath, and starts passing this SASL message and any that follow between the end points.  Note that this behaviour is specific to the SXOVER mechanism; it is just as well possible for a foreign server to welcome ANONYMOUS clients, which it can handle locally.</p>
+<p id="rfc.section.2.1.p.3">The inictr value is used as a bit of entropy, thus making it more difficult to mount replay attacks, though not at the level of security that a proper SASL mechanism can achieve through dynamic challenges and/or channel binding.</p>
+<p id="rfc.section.2.1.p.4">The keyno and encalg values present identification information for a key at the Diameter/SASL server, and the seskey is a representation of a session key suitable for decryption with that identified key.</p>
+<p id="rfc.section.2.1.p.5">The value of the seskey MAY be locally determined, but by default it SHOULD be a random seed that can serve as input to the random-to-key function with the required key-generation seed-length [Section 3 of <a href="#RFC3961">[RFC3961]</a>] for a session key with the same encryption algorithm enctype as the identified key.  The random seed is protected by encryption to the identified key using the Encrypt function [Section 3 of <a href="#RFC3961">[RFC3961]</a>], which always involves authenticity.  The key usage number is shared from the independent KIP protocol, and is set to KIP_KEYUSAGE_MAPPING or 1864.</p>
+<h1 id="rfc.section.2.2"><a href="#rfc.section.2.2">2.2.</a> <a href="#sxover-inichal" id="sxover-inichal">SXOVER initial challenge</a></h1>
+<pre>
+SXOVER-Initial-Challenge ::= SEQUENCE {
+   ctr           Counter,                 -- Counter value is inictr+1
+   realm         IA5String,               -- Confirms the realm securely
+   mechlist      SEQUENCE OF IA5String,   -- Available SASL mechanisms
+   chanbindmth   IA5String,               -- TODO:REALLY?
+                                          -- Method of channel binding
+   chanbindval   OCTET STRING             -- TODO:REALLY?
+                                          -- Value for channel binding
+}
+</pre>
+<p id="rfc.section.2.2.p.1">The initial SXOVER challenge is a server's response in which it presents the choice of mechanism names to use under the cloak of SXOVER.  It does not present any other information.  The following information is sent as one block under protection of the seskey: </p>
+<p id="rfc.section.2.2.p.2">This message precedes the SXOVER wrapping of a SASL exchange by first passing the inner SASL mechanisms, which cannot be taken from the list provided by the foreign server.  The mechanisms listed here are specific for the home realm of the client, information that could not be known to the foreign server before learning about the targeted realm.</p>
+<p id="rfc.section.2.2.p.3">The ctr value is simply inictr incremented by 1, with a wrap-around to stay within an unsigned 32-bit range.  It MUST be validated by the SASL client.</p>
+<p id="rfc.section.2.2.p.4">The realm is repeated from the SXOVER request, but this time it is protected by the session key.  Therefore, the SASL client MUST validate it before starting the wrapped SASL exchange.</p>
+<p id="rfc.section.2.2.p.5">The mechlist informs the SASL client of the mechanisms available for authentication against the SASL server.  These can be used for the wrapped SASL exchange.  The list is not related to any mechanism list that the foreign server will have sent before.  Specifically, SXOVER and ANONYMOUS mechanisms should not occur in the wrapped mechlist.</p>
+<p id="rfc.section.2.2.p.6">TODO: The chanbindmth and chanbindval relay what channel binding information the SASL server obtained, and which can be used by the SASL client if it wants to continue.  These values MUST be verified against the actual context first, to ensure that they do represent security requirements.  If a mechanism is used that does not include channel binding, then these fields can add some channel binding, but it is invariably better to employ channel binding that is cryptographically bound to the authentication operation.</p>
+<h1 id="rfc.section.2.3"><a href="#rfc.section.2.3">2.3.</a> <a href="#sxover-resp" id="sxover-resp">SXOVER responses</a></h1>
+<pre>
+SXOVER-Response ::= SEQUENCE {
+   ctr       Counter,             -- 1 + Previous ctr value
+   c2s       SaslToken,           -- NULL or token, client to server
+   mechsel   IA5String OPTIONAL   -- SASL mechanism name selection
+}
+
+SaslToken ::= CHOICE {
+   token     OCTET STRING,
+   no-token  NULL
+}
+</pre>
+<p id="rfc.section.2.3.p.1">Further SXOVER responses are essentially SASL responses and initial responses, encrypted under the seskey, but there is one exception; the first response must select a SASL mechanism.  There is a separate provision for sending no data, distinguishable from empty data, if this is desired by the SASL mechanism: </p>
+<p id="rfc.section.2.3.p.2">This is the first and later of the wrapped SASL messages sent from the client to the server.  When it is the first, the mechsel field MUST specify the SASL mechanism that the client selected from the mechsel issued before.  In any message, the ctr value is one more than the value in the previous SASL message, reduced to an unsigned 32-bit range.</p>
+<p id="rfc.section.2.3.p.3">The SaslToken in c2s is either a literal OCTET STRING with the SASL token to pass, or it is NULL if no token is passed.  This implements a distinction between an empty token and no token, as required for SASL.</p>
+<h1 id="rfc.section.2.4"><a href="#rfc.section.2.4">2.4.</a> <a href="#sxover-chal" id="sxover-chal">SXOVER challenges</a></h1>
+<pre>
+SXOVER-Challenge ::= SEQUENCE {
+   ctr     Counter,               -- 1 + Previous ctr value
+   s2c     SaslToken,             -- NULL or token, server to client
+   extra   OCTET STRING OPTIONAL  -- On success, optional extra token
+}
+</pre>
+<p id="rfc.section.2.4.p.1">Further SXOVER challenges are essentially SASL challenges and initial challenges, encrypted under the seskey.  There is a separate provision for sending no data, distinguishable from empty data, if this is desired by the SASL mechanism: </p>
+<p id="rfc.section.2.4.p.2">This is the first and later of the wrapped SASL messages sent from the server to the client.  In any message, the ctr value is one more than the value in the previous SASL message, reduced to an unsigned 32-bit range.</p>
+<p id="rfc.section.2.4.p.3">The SaslToken in s2c is either a literal OCTET STRING with the SASL token to pass, or it is NULL if no token is passed.  This implements a distinction between an empty token and no token, as required for SASL.</p>
+<p id="rfc.section.2.4.p.4">The extra value can be passed along as a hint to the user for a successful authentication.  Mechanisms do not commonly use the field, but SASL offers it.  The distinction between an empty OCTET STRING and an absent value is assured through the OPTIONAL modifier.  Note that this value should not be passed as part of the SXOVER exchange, as it is part of the SASL mechanism that was selected with mechsel in the wrapped exchange.  SXOVER does not specify an extra value, so the field in the outer SASL exchange that runs SXOVER will not be used.</p>
+<h1 id="rfc.section.3"><a href="#rfc.section.3">3.</a> <a href="#spec" id="spec">Embedding SASL in Diameter</a></h1>
+<p id="rfc.section.3.p.1">SASL messages in Diameter use a number of AVPs <a href="#RFC6733">[RFC6733]</a> that are defined for this purposes.  They occur in those combinations that are defined for SASL.</p>
+<p id="rfc.section.3.p.2">SASL over Diameter can only be used to relay the SXOVER mechanism to a home realm.  This means that no negotiation of mechanisms is needed at the Diameter level; this is handled under the SXOVER cloak.  The same holds for any negotation of channel binding; it is part of the cloacked SASL exchange.</p>
+<h1 id="rfc.section.3.1"><a href="#rfc.section.3.1">3.1.</a> <a href="#spec.avps" id="spec.avps">AVP Definitions for SASL</a></h1>
+<p id="rfc.section.3.1.p.1">These AVPs are added to the set that is used with the Network Access application, and can therefore be used in AA-Request and AA-Answer messages.  On top of that, the SASL-Mechanisms AVP may also occur in a Capabilities Exchange Answer.  The User-Name AVP MUST be supplied in the AA-Answer to inform the server about the user name that the backend decided on; the server MAY send a hint requesting a value in the User-Name AVP in the AA-Request.</p>
+<h1 id="rfc.section.3.1.1"><a href="#rfc.section.3.1.1">3.1.1.</a> <a href="#spec.avps.mech" id="spec.avps.mech">SASL-Mechanism</a></h1>
+<p id="rfc.section.3.1.1.p.1">The SASL-Mechanism AVP has AVP Code TBD0.  This specification only uses the mechanism name SXOVER as a value for this AVP.  It MUST be included in the first message of an SXOVER exchange sent to the home realm, and it SHOULD be verified by the home realm upon reception.  Its purpose is mostly to distinguish this specification from potential future specifications to encapsulate SASL in Diameter.</p>
+<p id="rfc.section.3.1.1.p.2">Though not used in this specification, this AVP may also be supplied from the home realm to the Diameter client to hold a space-separated list of SASL mechanisms.</p>
+<h1 id="rfc.section.3.1.2"><a href="#rfc.section.3.1.2">3.1.2.</a> <a href="#spec.avps.token" id="spec.avps.token">SASL-Token</a></h1>
+<p id="rfc.section.3.1.2.p.1">The SASL-Token AVP has AVP Code TBD1.  Note that SASL requires distinction between empty and absent tokens; absent SASL tokens are represented by absence of the SASL-Token AVP and empty SASL tokens are represented as a present SASL-Token AVP with zero content bytes.</p>
+<h1 id="rfc.section.3.1.3"><a href="#rfc.section.3.1.3">3.1.3.</a> <a href="#spec.avps.chanbind" id="spec.avps.chanbind">SASL-Channel-Binding</a></h1>
+<p id="rfc.section.3.1.3.p.1">The SASL-Channel-Binding AVP has AVP Code TBD2.  It SHOULD appear along the first SASL-Token AVP for a Network Access session.  The AVP may occur more than once, to indicate support of multiple forms of channel binding.</p>
+<p id="rfc.section.3.1.3.p.2">When the client connects to the foreign service over TLS, the tls-unique form <a href="#RFC5929">[RFC5929]</a> of channel binding is RECOMMENDED.  Specific foreign servers may however be exempted by the home realm.</p>
+<p id="rfc.section.3.1.3.p.3">The contents of this AVP are: </p>
+
+<dl>
+  <dt>name</dt>
+  <dd style="margin-left: 6">is the standard name of the channel binding information, followed by a zero-valued byte.</dd>
+  <dt>value</dt>
+  <dd style="margin-left: 6">contains the bytes of the channel binding information.</dd>
+</dl>
+<p id="rfc.section.3.1.3.p.4">Normally, channel binding information should be sourced from the underlying communications channel, but this information is not available to backend running Diameter.  To enable channel binding between the end points, the foreign server incorporates the channel binding information that the client can use in its connection to the foreign server.  This is useful to mitigate replay attacks, which is why its use is RECOMMENDED.  Channel binding provides better guarantees than the simple inictr/ctr mechanism used in SXOVER.</p>
+<h1 id="rfc.section.4"><a href="#rfc.section.4">4.</a> <a href="#run" id="run">Running Diameter as a SASL Backend</a></h1>
+<p id="rfc.section.4.p.1">Following are a few practical considerations in relation to the Diameter connectivity for SASL.</p>
+<h1 id="rfc.section.4.1"><a href="#rfc.section.4.1">4.1.</a> <a href="#run.sctp" id="run.sctp">Diameter is an SCTP service</a></h1>
+<p id="rfc.section.4.1.p.1">Diameter is primarily an SCTP-based protocol <a href="#RFC6733">[RFC6733]</a>, for reasons of scalabaility and efficiency.  SASL Diameter benefits from these properties and embraces the SCTP carrier.  Operating system support for SCTP is wide-spread, but parts of network infrastructure may not support it, and that may cause implementations to add a fallback to more traditional protocols.  Standards offer two options for doing this.</p>
+<p id="rfc.section.4.1.p.2">Diameter can fallback to run over TCP, which is mostly of use to client-only machines, but it sacrifices several benefits of the SCTP carrier.  Since the SASL Diameter embedding typically involves no client systems, this option is NOT RECOMMENDED.</p>
+<p id="rfc.section.4.1.p.3">SCTP may be run over a UDP transport using port 9899 <a href="#RFC6951">[RFC6951]</a>, which does not sacrifice much; it only inserts a UDP header before each message.  This is a reasonable expectation of foreign servers as well as home realms, so this additional option is RECOMMENDED for situations where a fallback for plain SCTP is desired.  It is standardised as a socket option SCTP_REMOTE_UDP_ENCAPS_PORT, and only involves a small repetition in code, with a minor change between the attempts.</p>
+<h1 id="rfc.section.4.2"><a href="#rfc.section.4.2">4.2.</a> <a href="#run.dnssec" id="run.dnssec">Reliance on DANE and DNSSEC</a></h1>
+<p id="rfc.section.4.2.p.1">Diameter always involves the use of TLS, but there is a number of choices concerning the validation of connections through DNSSEC and DANE.  It is the home realm's prerogative what level of protection it upholds for its client identities, but any foreign server can choose to raise the bar by setting a minimum standard.</p>
+<p id="rfc.section.4.2.p.2">DNSSEC is a useful protection mechanism for the _diameter._sctp SRV records that lead to the Diameter host and its port for the home realm.  This does not protect against forged IP addresses, port mappings or routing.  To protect against this as well, a TLSA record for the service host and port, along with the _sctp protocol label, should be used as specified for DANE <a href="#RFC6698">[RFC6698]</a>.</p>
+<p id="rfc.section.4.2.p.3">Home realms that choose to be light on such measures risk that identities are forged, in spite of their use of TLS.  Foreign servers MAY choose to reject such home realms, or alternatively be more inquisitive about the certificates used.</p>
+<h1 id="rfc.section.4.3"><a href="#rfc.section.4.3">4.3.</a> <a href="#run.foreignsasl" id="run.foreignsasl">Foreign Service SASL Mechanisms</a></h1>
+<p id="rfc.section.4.3.p.1">A foreign server MUST offer SXOVER if it wants to support realm crossover via Diameter as specified herein.  In addition, it MAY offer SASL mechanisms that it resolves locally.</p>
+<p id="rfc.section.4.3.p.2">The ANONYMOUS method for SASL <a href="#RFC4505">[RFC4505]</a> may be offered for guest access.  The PLAIN method <a href="#RFC4616">[RFC4616]</a> continues to be ill-advised, especially with modern methods such as SCRAM <a href="#RFC5802">[RFC5802]</a> to address the needs of local accounts with password validation.</p>
+<p id="rfc.section.4.3.p.3">The HTTP protocol does not yet support SASL, and it is not optimal from a security viewpoint to integrate credentials in the dynamic environment of HTML, where dynamic content from potentially undesirable origins come together in a manner not controllable to the end user.  One remedy is to use HTTP and its authentication methods that match with SASL, such as SCRAM for HTTP <a href="#RFC7804">[RFC7804]</a>.  Another remedy is to switch to generic SASL embedding in HTTP [TODO:REF:draft-vanrein-httpauth-sasl] and gain replay protection through channel binding.</p>
+<p id="rfc.section.4.3.p.4">Many application protocols offer richer semantics than HTTP, making them better targets for automation.  Their reliance on SASL has made them less tractable as a service to third parties.  One reason for introducing SXOVER is in the hope to make it possible to have those semantically rich applications as a third-party offering.</p>
+<h1 id="rfc.section.5"><a href="#rfc.section.5">5.</a> Security Considerations</h1>
+<p id="rfc.section.5.p.1">From the perspective of the client and the home realm, the safety of the SASL credentials is paramount.  Since not all SASL mechanisms are safe from inspection by the foreign server, and since TLS cannot help there either, there is a need for some caution.</p>
+<p id="rfc.section.5.p.2">The limitation of the Diameter carrier for SASL to SXOVER reduces this risk, by only authenticating SASL mechanisms under end-to-end encryption between the client and home realm.  It is generally understood that clients must not send unprotected SASL authentication attempts to arbitrary parties, but SXOVER adds a facility that is safe for clients to use in this manner.  The SXOVER mechanism could even be used without TLS protection.</p>
+<p id="rfc.section.5.p.3">From the perspective of the foreign server, the security concern is to be certain of an identity.  The home realm sends this information back when SXOVER authentication succeeds, and the communication doing so is protected with TLS.  The certificate of the Diameter server can be validated, and for cautious home realms there could be an additional check based on DANE.</p>
+<h1 id="rfc.section.6"><a href="#rfc.section.6">6.</a> IANA Considerations</h1>
+<pre>
+AVP Code | Attribute Name       | Reference
+---------+----------------------+------------
+TBD0     | SASL-Mechanism       | (this spec)
+TBD1     | SASL-Token           | (this spec)
+TBD2     | SASL-Channel-Binding | (this spec)
+</pre>
+<p id="rfc.section.6.p.1">This specification defines three AVP Codes for use with Diameter.  IANA registers the following AVP Codes for them in the "Authentication, Authorization, and Accounting (AAA) Parameters" registry: </p>
+<h1 id="rfc.references"><a href="#rfc.references">7.</a> References</h1>
+<h1 id="rfc.references.1"><a href="#rfc.references.1">7.1.</a> Normative References</h1>
+<table>
+  <tbody>
+    <tr>
+      <td class="reference">
+        <b id="RFC3961">[RFC3961]</b>
+      </td>
+      <td class="top"><a>Raeburn, K.</a>, "<a href="http://tools.ietf.org/html/rfc3961">Encryption and Checksum Specifications for Kerberos 5</a>", RFC 3961, DOI 10.17487/RFC3961, February 2005.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC4422">[RFC4422]</b>
+      </td>
+      <td class="top"><a>Melnikov, A.</a> and <a>K. Zeilenga</a>, "<a href="http://tools.ietf.org/html/rfc4422">Simple Authentication and Security Layer (SASL)</a>", RFC 4422, DOI 10.17487/RFC4422, June 2006.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC5056">[RFC5056]</b>
+      </td>
+      <td class="top"><a>Williams, N.</a>, "<a href="http://tools.ietf.org/html/rfc5056">On the Use of Channel Bindings to Secure Channels</a>", RFC 5056, DOI 10.17487/RFC5056, November 2007.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC5801">[RFC5801]</b>
+      </td>
+      <td class="top"><a>Josefsson, S.</a> and <a>N. Williams</a>, "<a href="http://tools.ietf.org/html/rfc5801">Using Generic Security Service Application Program Interface (GSS-API) Mechanisms in Simple Authentication and Security Layer (SASL): The GS2 Mechanism Family</a>", RFC 5801, DOI 10.17487/RFC5801, July 2010.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC5929">[RFC5929]</b>
+      </td>
+      <td class="top"><a>Altman, J.</a>, <a>Williams, N.</a> and <a>L. Zhu</a>, "<a href="http://tools.ietf.org/html/rfc5929">Channel Bindings for TLS</a>", RFC 5929, DOI 10.17487/RFC5929, July 2010.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC6698">[RFC6698]</b>
+      </td>
+      <td class="top"><a>Hoffman, P.</a> and <a>J. Schlyter</a>, "<a href="http://tools.ietf.org/html/rfc6698">The DNS-Based Authentication of Named Entities (DANE) Transport Layer Security (TLS) Protocol: TLSA</a>", RFC 6698, DOI 10.17487/RFC6698, August 2012.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC6733">[RFC6733]</b>
+      </td>
+      <td class="top"><a>Fajardo, V.</a>, <a>Arkko, J.</a>, <a>Loughney, J.</a> and <a>G. Zorn</a>, "<a href="http://tools.ietf.org/html/rfc6733">Diameter Base Protocol</a>", RFC 6733, DOI 10.17487/RFC6733, October 2012.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC6951">[RFC6951]</b>
+      </td>
+      <td class="top"><a>Tuexen, M.</a> and <a>R. Stewart</a>, "<a href="http://tools.ietf.org/html/rfc6951">UDP Encapsulation of Stream Control Transmission Protocol (SCTP) Packets for End-Host to End-Host Communication</a>", RFC 6951, DOI 10.17487/RFC6951, May 2013.</td>
+    </tr>
+  </tbody>
+</table>
+<h1 id="rfc.references.2"><a href="#rfc.references.2">7.2.</a> Informative References</h1>
+<table>
+  <tbody>
+    <tr>
+      <td class="reference">
+        <b id="RFC4505">[RFC4505]</b>
+      </td>
+      <td class="top"><a>Zeilenga, K.</a>, "<a href="http://tools.ietf.org/html/rfc4505">Anonymous Simple Authentication and Security Layer (SASL) Mechanism</a>", RFC 4505, DOI 10.17487/RFC4505, June 2006.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC4616">[RFC4616]</b>
+      </td>
+      <td class="top"><a>Zeilenga, K.</a>, "<a href="http://tools.ietf.org/html/rfc4616">The PLAIN Simple Authentication and Security Layer (SASL) Mechanism</a>", RFC 4616, DOI 10.17487/RFC4616, August 2006.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC5802">[RFC5802]</b>
+      </td>
+      <td class="top"><a>Newman, C.</a>, <a>Menon-Sen, A.</a>, <a>Melnikov, A.</a> and <a>N. Williams</a>, "<a href="http://tools.ietf.org/html/rfc5802">Salted Challenge Response Authentication Mechanism (SCRAM) SASL and GSS-API Mechanisms</a>", RFC 5802, DOI 10.17487/RFC5802, July 2010.</td>
+    </tr>
+    <tr>
+      <td class="reference">
+        <b id="RFC7804">[RFC7804]</b>
+      </td>
+      <td class="top"><a>Melnikov, A.</a>, "<a href="http://tools.ietf.org/html/rfc7804">Salted Challenge Response HTTP Authentication Mechanism</a>", RFC 7804, DOI 10.17487/RFC7804, March 2016.</td>
+    </tr>
+  </tbody>
+</table>
+<h1 id="rfc.appendix.A"><a href="#rfc.appendix.A">Appendix A.</a> <a href="#ack" id="ack">Acknowledgements</a></h1>
+<p id="rfc.section.A.p.1">Thanks go to TODO for useful discussions during the creation of this document.</p>
+<h1 id="rfc.authors">
+  <a href="#rfc.authors">Author's Address</a>
+</h1>
+<div class="avoidbreak">
+  <address class="vcard">
+	<span class="vcardline">
+	  <span class="fn">Rick van Rein</span> 
+	  <span class="n hidden">
+		<span class="family-name">Van Rein</span>
+	  </span>
+	</span>
+	<span class="org vcardline">ARPA2.net</span>
+	<span class="adr">
+	  <span class="vcardline">Haarlebrink 5</span>
+
+	  <span class="vcardline">
+		<span class="locality">Enschede</span>,  
+		<span class="region">Overijssel</span> 
+		<span class="code">7544 WP</span>
+	  </span>
+	  <span class="country-name vcardline">The Netherlands</span>
+	</span>
+	<span class="vcardline">EMail: <a href="mailto:rick@openfortress.nl">rick@openfortress.nl</a></span>
+
+  </address>
+</div>
+
+</body>
+</html>
