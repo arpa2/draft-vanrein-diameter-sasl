@@ -398,7 +398,7 @@ at the home realm, which usually leads to a stable mechanism list.</t>
 Mechanism-Independent Token Format [Section 3.1 of <xref target="RFC2743"/>]
 and prefixed to the initial token of a GSS-API context establishment
 sequence, incorporating the object identifier
-1.3.6.1.4.1.44469.666.5081.1 (TODO:EXPERIMENTALASSIGNMENT)
+1.3.6.1.4.1.44469.666.5081.1 (TBD:GSSOID)
 to identify GS2-SXOVER-PLUS.  When this object identifier is supplied to
 the call GSS_Inquire_SASLname_for_mech [Section 10 of <xref target="RFC5801"/>],
 the output reads "GS2-SXOVER-PLUS" (without the quotes).</t>
@@ -415,11 +415,11 @@ GSS-SXOVER-Init ::= SEQUENCE {
 
 <t>The annotated bytes are shown below:
 <figure><artwork><![CDATA[
-   60 02 TODO:LEN16   -- [APPLICATION 0] IMPLICIT SEQUENCE {
-      -- OBJECT IDENTIFIER 1.3.6.1.4.1.44469.666.5081.1 (TODO)
-      06 TODO:LEN8 2b 06 01 04 01 TODO:44469 TODO:666 TODO:5081 01  -- OBJECT IDENTIFIER
+   60 02 ...length...   -- [APPLICATION 0] IMPLICIT SEQUENCE { ... }
+      -- OBJECT IDENTIFIER 1.3.6.1.4.1.44469.666.5081.1 (TBD:GSSOID)
+      06 ...length... 2b 06 01 04 01 44469 TBD:666 TBD:5081 01  -- OBJECT IDENTIFIER
       -- GSS-SXOVER-Init
-      30 TODO:LEN16:GSS-SXOVER-Init  -- SEQUENCE { ... }
+      30 ...length...  -- SEQUENCE { ... }
          ...
 ]]></artwork></figure></t>
 
@@ -445,7 +445,7 @@ constrained than its general form, namely:
 <t hangText="gs2-nonstd-flag"> is absent;</t>
 <t hangText="gs2-cb-flag"> MUST NOT be "y" or "n" because
 	channel binding is required; the only remaining general form is
-	therefore ("p=" cb-name); the foreign server MUST interpret this
+	therefore ("p=" cb-name); a foreign server MUST interpret this
 	flag and relay the appropriate channel binding information through
 	its Diameter backend;</t>
 <t hangText="gs2-authzid"> is used for routing of C2S-Init to the Diameter
@@ -617,11 +617,11 @@ server MUST include at least the following AVPs in a successful
 AA-Answer [Section 3.2. of <xref target="RFC7155"/>]:
 <list style="hanging" hangIndent="6">
 <t hangText="User-Name">is set to the identity of the SASL client,
-	which resulted from the SASL exchange and possibly further
+	which resulted from the encapsulated SASL exchange and possibly further
 	authorisation processing in the SASL server; the name MUST NOT
 	add the realm name in this attribute; it is up to the foreign
 	server to assign it under the authoritative realm, possibly by
-	appending the last U+0040 (AT) and the following realm name
+	appending the last U+0040 (AT) character and its realm name
 	observed from the GS2 header sent in C2S-Init over Diameter.</t>
 <t hangText="Permissions">may be expected from a Diameter server, but
 	are considered optional for SASL over Diameter.  The reason is that
@@ -747,41 +747,44 @@ more inquisitive about the certificates used.</t>
 
 <section title="Security Considerations">
 
-<t>TODO:separation of realm (authenticated by foreign server) and username
-(authenticated by backend realm).</t>
+<t>The SASL mechanism GS2-SXOVER-PLUS separates the authentication of
+a foreign identity into its realm and the username underneath it.  The
+realm is authenticated by the relying server, such as the proposed
+foreign server, whereas the username is obtained from a backend realm
+server that is known to be responsible for that realm.</t>
 
-<t>TODO:SECURITY:HAVETHIS:SOMEWHERE:HERE
-In light of its realm-crossing purpose and to avoid reuse of the
-credentials in the intermediates, GS2-SXOVER-PLUS always involves
-channel binding <xref target="RFC5056"/> of some form.  Furthermore, to
-avoid foreign servers to gain any privileges on client resources, the
-GS2-SXOVER-PLUS mechanism SHOULD NOT be offered by SASL servers which provide
-access to resources that provide resource access beyond network authentication
-service.</t>
+<t>From the perspective of the foreign server, assurance of an identity
+is the vital aspect of the GS2-SXOVER-PLUS flow that it relays over Diameter.
+Through TLS or DTLS, with DNSSEC and DANE to validate the certificate it
+uses, the link from a realm (which is read as a domain name) to the Diameter
+connection can be verified, so the relying server can be certain about the
+realm under which the backend connection resides.  By receiving a response
+over that connection to a known-authoritative server for the realm, the
+username can also be trusted.  The relying server continues to treat the
+username and realm as a pair the for identification of the user.</t>
+
+<t>Channel binding is normally limited to two parties only, and forwarding
+such information is not a trivial idea.  The fact that the forwarding
+connection is encrypted, and known to lead to an authoritative server for
+a claimed realm does help.  The intermediate server relies on proper
+authentication, and has no interest in bypassing authentication, and it
+would be doing that by adopting channel binding information from
+anywhere else.</t>
 
 <t>From the perspective of the client and the home realm, the
-safety of the SASL credentials is paramount.  Since not all SASL
-mechanisms are safe from inspection by the foreign server, and
-since TLS cannot help there either, there is a need for some
-caution.</t>
+safety of the SASL credentials is paramount.  When addressing a
+foreign server, which is not part of the home realm, clients
+therefore MUST NOT rely on mechanisms that might leak credentials.
+Two mechanisms that are safe to use are ANONYMOUS, which passes no
+credentials and assigns no rights, and GS2-SXOVER-PLUS, which
+applies end-to-end encryption to another SASL mechanism that may or
+may not be secure.</t>
 
-<t>TODO: Add ANONYMOUS for guest access to next 2 paragraphs.</t>
-
-<t>The limitation of the Diameter carrier for SASL to GS2-SXOVER-PLUS
-mitigates this risk, by only authenticating SASL mechanisms under
-end-to-end encryption between the client and home realm.  It
-is generally understood that clients must not send unprotected
-SASL authentication attempts to arbitrary parties, but GS2-SXOVER-PLUS
-adds a facility that is safe for clients to use in this manner.
-The GS2-SXOVER-PLUS mechanism could even be used without TLS protection.</t>
-
-<t>From the perspective of the foreign server, the security
-concern is to be certain of an identity.  The home realm sends
-this information back when GS2-SXOVER-PLUS authentication succeeds,
-and the communication doing so is protected with TLS.  The
-certificate of the Diameter server can be validated, and for
-cautious home realms there could be an additional check
-based on DANE.</t>
+<t>The GS2-SXOVER-PLUS mechanism uses channel binding to ensure that
+the authentication is specific to a stream.  The level to which this is
+secure depends on the channel binding mechanism.  Therefore, in spite
+of end-to-end encryption, most use cases will want a secure carrier
+such as TLS between the client and foreign server.</t>
 
 </section>
 
@@ -858,7 +861,7 @@ TBD2     | SASL-Channel-Binding | (this spec)
 -->
 <!-- </references> -->
 
-<!-- TODO: ZEAL
+<!-- Possible ZEAL
 <section title="Diameter Message Examples" anchor="examples">
 
 <t>This section is non-normative.  It shows a number of examples of
