@@ -637,7 +637,7 @@ AA-Answer [Section 3.2. of <xref target="RFC7155"/>]:
 If the SASL exchange requires continuation, then the AA-Answer represents
 a challenge to follow up, represented in the an AA-Answer that MUST
 include at least the following AVPs:
-<list style="hanging" hangIndex="6">
+<list style="hanging" hangIndent="6">
 <t hangText="Result-Code">is set to the value DIAMETER_MULTI_ROUND_AUTH;</t>
 <t hangText="SASL-Token">is set to the S2C-Init value;</t>
 <t hangText="State"> is set to server state to be reproduced in the
@@ -837,6 +837,7 @@ TBD2     | SASL-Channel-Binding | (this spec)
 <?rfc include="reference.RFC.6698.xml"?>
 <?rfc include="reference.RFC.6733.xml"?>
 <?rfc include="reference.RFC.6951.xml"?>
+<?rfc include="reference.RFC.7155.xml"?>
 <!--
 <?rfc include="reference.RFC.7235.xml"?>
 <?rfc include="reference.RFC.7615.xml"?>
