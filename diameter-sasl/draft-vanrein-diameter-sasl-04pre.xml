@@ -1,0 +1,885 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="rfc2629.xslt"?>
+<!DOCTYPE rfc SYSTEM "rfc2629.dtd">
+
+<?rfc toc="yes" ?>
+<?rfc compact="yes" ?>
+<?rfc symrefs="yes" ?>
+<?rfc subcompact="no" ?>
+<?rfc comments="yes" ?>
+<?rfc inline="yes" ?>
+
+<rfc ipr="trust200902" docName="draft-vanrein-diameter-sasl-03" category="info">
+
+<front>
+
+	<title abbrev="Diameter SASL">Realm Crossover for SASL and GSS-API via Diameter</title>
+
+	<author initials="R" surname="Van Rein" fullname="Rick van Rein">
+		<organization>ARPA2.net</organization>
+		<address>
+			<postal>
+				<street>Haarlebrink 5</street>
+				<city>Enschede</city>
+				<region>Overijssel</region>
+				<code>7544 WP</code>
+				<country>The Netherlands</country>
+			</postal>
+			<email>rick@openfortress.nl</email>
+		</address>
+	</author>
+
+	<date day="21" month="January" year="2200"/>
+
+	<abstract>
+	<t>SASL and GSS-API are used for authentication in many application
+	protocols.  This specification extends them to allow credentials of
+	a home realm to be used against external services.  To this end, it
+	introduces end-to-end encryption for SASL that is safe to relay to
+	the client's home realm.</t>
+	</abstract>
+
+<!--
+
+CHANGES FROM 03 TO 04:
+ * TODO
+
+CHANGES FROM 02 TO 03:
+ * Rename messages to C2S-Init, S2C-Init, C2S-Cont, S2C-Cont
+ * Make SASL en GSSAPI bindings with header for C2S-Init
+ * Explain why not use KIP keys to authenticate (temporary, easy to get)
+ * Insert gs2-header from RFC 5801 before ASN.1; forbid "F"
+ * Remove chanbindmth / chanbindval from ASN.1 headers
+ * gs2-header may set @realm as "outer" authzid, forwarded in Diameter
+ * Explain that foreign server attaches client-requested chanbind info
+ * Explain that foreign server attaches targeted realm in Diameter
+ * Continue to respond with the realm in 1st s2c token
+ * Stopped to (also) send an embedded / protected authzid / realm
+ * We do not want a version without channel binding
+
+CHANGES FROM 01 TO 02:
+ * Ditched the "simple binary format" attempt in favour of DER
+ * Changed key usage numbers to the ones established for KIP
+
+CHANGES FROM 00 TO 01:
+ * General notion of realm crossover, Diameter is "just" a way of doing it
+ * SXOVER mechanism for SASL, encrypts a nested SASL mechanism
+ * Dropped the SASL-Mechanisms AVP
+ * Replaced SASL-Encrypted-Token with a mere SASL-Token
+ * Complete rewrite of Introduction and Security Considerations
+
+-->
+
+</front>
+
+
+<middle>
+
+<section title="Introduction" anchor="intro">
+
+<t>It is common for Internet users to combine services from a varierity of
+providers.  Along with this, an ad hoc practice has arisen of using the
+local identity schemes of these providers.  These are not integrated, and
+the practice tends to reduce the control of
+users over their online identity.  A solution to this is support
+for realm crossover, where an externally acquired service can make a
+callback to a home realm to authenticate a user's identity and use that
+for service-specific authorisation.</t>
+
+<t>SASL <xref target="RFC4422"/>
+is instrumental in authentication across a wide range of application
+protocols; it allows those protocols to abstract from the actual authentication
+mechanisms, and at the same time it allows authentication mechanisms to not
+be concerned about the application protocol.  SASL can easily be funneled
+from one protocol into another, modulo a number of security concerns.</t>
+
+<t>Diameter and its Network Access application are instrumental in
+authenticating a user under a realm, while not providing the resources
+that an application protocol would imply.  Moreover, Diameter service
+can be declared under a domain name in a manner that is standardised,
+scalable and secure.</t>
+
+<t>This allows a foreign server to authenticate a client to authenticate
+with its home realm:
+<figure><artwork><![CDATA[
+   +--------+    SASL     +--------+    SASL    +---------+
+   | Client |-----------> | Server | ---------> |  Realm  |
+   +--------+  AppProto   +--------+  Diameter  +---------+
+       ||                     ||                    ||
+john@example.com        find SRV, TLSA          example.com
+  & credential            relay SASL           authentication
+]]></artwork></figure></t>
+
+<t>Diameter can send a mere notification of authentication, and the foreign
+server can use DANE <xref target="RFC6698"/> to validate the origin of
+these notifications.  Diameter in the foreign server will authenticate to
+the home realm, which may then decide to add resources beyond the basic
+notification of authentication.</t>
+
+<t>SASL mechanisms are not generally protected against attacks by men
+in the middle named Eve.  This is usually compensated for
+by wrapping the application protocol in TLS, but since that would only
+protect one leg of the intended realm-crossing authentication exchange,
+there is a need
+for end-to-end encryption.  This can be established along with other
+credentials for the home realm, but an end-to-end mechanism needs to
+be defined.  This specification introduces a wrapper for that pupose,
+and nests a SASL exchange with the home realm under its cloak.</t>
+
+<t>Finally, to avoid the use of one authentication exchange to validate
+another, it is advisable to incorporate
+channel binding <xref target="RFC5056"/> <xref target="RFC5801"/>
+when making use
+of backends.  When passing SASL tokens between application protocol and
+Diameter backend, the channel binding information from the application
+protocol would be supplied as a side-note to the Diameter backcall.</t>
+
+</section>
+
+<section title="Messages of GS2-SXOVER-PLUS" anchor="sxover-raw">
+
+<t>GS2-SXOVER-PLUS establishes a session key and continues with an encrypted,
+but otherwise normal SASL exchange.  This cloak provides end-to-end
+encryption for the contained SASL exchange, which allows it to be passed
+through a foreign server.  This section defines the messages involved in
+the GS2-SXOVER-PLUS exchange in isolation, later sections specify how this
+fits into GSS-API and SASL contexts, and how these travel to the home
+realm's network access server.</t>
+
+<t>By announcing the GS2-SXOVER-PLUS mechanism for SASL, a foreign server
+declares it is willing to relay SASL messages for that mechanism to the
+authentication realm indicated by the client in its first GS2-SXOVER-PLUS
+message in a plaintext form.  Later sections define a standard mechanism
+for relaying such messages over Diameter, using DNSSEC and DANE so that
+the result can be trusted to have come from the indicated realm and thus
+warrant any user name scoped under that realm.  Offering GS2-SXOVER-PLUS does
+not preclude the offering of other SASL mechanisms; for instance, ANONYMOUS
+may be useful to allow clients to choose guest access.</t>
+
+<section title="Initial Client-to-Server Message" anchor="sxover-c2s-init">
+
+<t>The GS2-SXOVER-PLUS exchange is initiated by the client, by sending a
+C2S-Init message:</t>
+<t><figure><artwork><![CDATA[
+C2S-Init ::= [APPLICATION 1] IMPLICIT SEQUENCE {
+   inictr   Counter,       -- Initial counter value
+   keyno    KeyNumber,     -- With realm and encalg, identifies...
+   encalg   EncryptAlg,    -- ...the key for svckeymud decryption
+   seskey   OCTET STRING   -- RFC 3961 encrypted, key usage 1864
+}
+
+Counter ::= INTEGER (0..4294967295)             -- Unsigned 32-bit
+KeyNumber ::= INTEGER (0..4294967295)           -- Unsigned 32-bit
+EncryptAlg ::= INTEGER (-2147483648..2147483647)  -- Signed 32-bit
+]]></artwork></figure></t>
+
+<t>The inictr value is used as a bit of entropy, and will be
+incremented by one for every next message in the same flow.
+This helps to bind messages into one flow and to distinguish
+among flows.  Though helpful to protect against replay attacks,
+dynamic challenges and channel binding offer better protection.</t>
+
+<t>The keyno and encalg values present identification
+information for a key at the Diameter/SASL server, and the
+seskey is a representation of a session key suitable for
+decryption with that identified key.  The method by which
+the keyno and encalg and the key itself are established is
+not defined here, because its choice is local to the client's
+realm.  The reason for not authenticating with this key is
+that anonymous encryption keys are much easier to establish
+than authentication keys.  One possible mechanism is KIP,
+the Keyful Identity Protocol, but it is not prescribed
+herein.</t>
+
+<t>The value of the seskey MAY be locally determined, but by
+default it SHOULD be a random seed that can serve as input
+to the random-to-key function with the required key-generation
+seed-length [Section 3 of <xref target="RFC3961"/>] for a
+session key with the same encryption algorithm enctype as the
+identified key.  The random seed is protected by encryption
+to the identified key using the Encrypt function
+[Section 3 of <xref target="RFC3961"/>], which always
+involves authenticity.  The key usage number is shared from
+the independent KIP protocol, and is set to
+KIP_KEYUSAGE_MAPPING or 1864.</t>
+
+</section>
+
+<section title="Initial Server-to-Client Message" anchor="sxover-s2c-init">
+
+<t>In both SASL and GSS-API, this first message from server to client is
+passed as an S2C-Init message:
+<figure><artwork><![CDATA[
+S2C-Init ::= [APPLICATION 2] IMPLICIT SEQUENCE {
+   ctr        Counter,                -- Counter value is inictr+1
+   realm      IA5String,              -- Secure realm confirmation
+   mechlist   SEQUENCE OF IA5String   -- Available SASL mechanisms
+}
+]]></artwork></figure></t>
+
+<t>The first message from the server to the client is named the Initial
+Response in SASL.  This message presents
+the client with a choice of mechanism names to use under the
+cloak of GS2-SXOVER-PLUS.  In addition, it securely confirms the realm name
+that will be assumed in the upcoming exchange.</t>
+
+<t>GS2-SXOVER-PLUS makes no assumptions about the mechanisms supported at
+the home realm.  Instead, S2C-Init lists mechanisms specific to the home
+realm of the client, which are concealed from the foreign
+server, so it cannot influence the list.</t>
+
+<t>The ctr value is simply inictr incremented by 1, with a
+wrap-around to stay within an unsigned 32-bit range.  It MUST
+be validated by the SASL client.  The counter mechanism is both
+a protection against message resending and a means of having
+concurrent SASL exchanges if the client wants to.</t>
+
+<t>The realm is repeated from the GS2-SXOVER-PLUS request, but this time
+it is protected by the session key.  Therefore, the SASL client
+MUST validate it before starting the wrapped SASL exchange.</t>
+
+<t>The mechlist informs the SASL client of the mechanisms
+available for authentication against the SASL server.  These
+can be used for the wrapped SASL exchange.  The list is not
+related to any mechanism list that the foreign server will
+have sent before.  Specifically, GS2-SXOVER-PLUS and ANONYMOUS
+mechanisms should not occur in the wrapped mechlist.
+Furthermore, only mechanisms supporting channel binding SHOULD
+be supported, meaning that all strings in mechlist should have a
+-PLUS ending.</t>
+
+</section>
+
+<section title="Continued Client-to-Server Messages" anchor="sxover-c2s-cont">
+
+<t>Further GS2-SXOVER-PLUS messages from client to server are named
+(initial) responses by SASL, and they are formed by encrypting
+the DER-form of C2S-Cont under the seskey.  There is one special
+case, namely the need for the first C2S-Cont to select a SASL
+mechanism to run under the seskey cloak.
+For all C2S-Cont messages, there is a separate representation for
+no data, distinguishable from empty data:
+<figure><artwork><![CDATA[
+C2S-Cont ::= [APPLICATION 3] IMPLICIT SEQUENCE {
+   ctr       Counter,             -- 1 + Previous ctr value
+   c2s       SaslToken,           -- NULL or token, client to server
+   mechsel   IA5String OPTIONAL   -- SASL mechanism name selection
+}
+
+SaslToken ::= CHOICE {
+   token     OCTET STRING,
+   no-token  NULL
+}
+]]></artwork></figure></t>
+
+<t>This is the first and later of the wrapped SASL messages sent
+from the client to the server.  When it is the first, the
+mechsel field MUST specify the SASL mechanism that the client
+selected from the mechsel issued before.  The mechsel MUST support
+channel binding, so it must have a -PLUS ending.  In any message, the
+ctr value is one more than the value in the previous SASL message,
+reduced to an unsigned 32-bit range; see <xref target="init-optimal"/>
+for an important detail caused by round-trip optimisation.</t>
+
+<t>The SaslToken in c2s is either a literal OCTET STRING with the
+SASL token to pass, or it is NULL if no token is passed.  This
+implements a distinction between an empty token and no token, as
+required by SASL <xref target="RFC4422"/>.</t>
+
+</section>
+
+<section title="Continued Server-to-Client Messages" anchor="s2c-cont">
+
+<t>After the first message from the server to the client, they adhere
+to the structure of S2C-Cont, defined below.  The SASL term for these
+messages would be a Challenge that is not an Initial Challenge.  The
+exchange is encrypted under the seskey:
+<figure><artwork><![CDATA[
+S2C-Cont ::= [APPLICATION 4] IMPLICIT SEQUENCE {
+   ctr     Counter,               -- 1 + Previous ctr value
+   s2c     SaslToken,             -- NULL or token, server to client
+   extra   OCTET STRING OPTIONAL  -- On success, optional extra token
+}
+]]></artwork></figure></t>
+
+<t>This is the first and later of the wrapped SASL messages
+sent from the server to the client.  In any message, the ctr
+value is one more than the value in the previous SASL message,
+reduced to an unsigned 32-bit range.</t>
+
+<t>The SaslToken in s2c is either a literal OCTET STRING with the
+SASL token to pass, or it is NULL if no token is passed.  This
+implements a distinction between an empty token and no token, as
+required for SASL.</t>
+
+<t>The extra value can be passed along as a hint to the user for
+a successful authentication.  Mechanisms do not commonly use the
+field, but SASL offers it.  The distinction between an empty
+OCTET STRING and an absent value is assured through the OPTIONAL
+modifier.  Note that this value should not be passed as part of
+the GS2-SXOVER-PLUS exchange, as it is part of the SASL mechanism that
+was selected with mechsel in the wrapped exchange.  GS2-SXOVER-PLUS does
+not specify an extra value, so the field in the outer SASL
+exchange that runs GS2-SXOVER-PLUS will not be used.</t>
+
+</section>
+
+</section>
+
+<section title="GS2-SXOVER-PLUS as a GS2 Mechanism" anchor="mech2gs2">
+
+<t>The messages of GS2-SXOVER-PLUS will now be mapped to SASL and GSS-API.
+The GS2 bridge <xref target="RFC5056"/> defines the requirements to make
+the two behave equavalently on the basis of a header preceding the first
+"raw" message which is the C2S-Init message.</t>
+
+<t>Further messages, so S2C-Init, C2S-Cont and S2C-Cont will be encrypted
+but otherwise used as-is under both SASL and GSS-API.</t>
+
+<section title="Encrypting GS2-SXOVER-PLUS Messages">
+
+<t>Before inclusion in the GSS-API and SASL frames, most GS2-SXOVER-PLUS
+messages will be encrypted:
+<list style="hanging" hangIndent="6">
+<t hangText="C2S-Init"> is not encrypted, but it contains a seskey
+	field that is encrypted under the long-term key with
+	key usage value KIP_KEYUSAGE_MAPPING or 1864;</t>
+<t hangText="S2C-Init, C2S-Cont, S2C-Cont"> are encrypted under the seskey,
+	as supplied in the C2S-Init that started the session,
+	with key usage value KIP_KEYUSAGE_USERDATA or 1863.</t>
+</list>
+The encrypt operation [Section 3 of <xref target="RFC3961"/>] uses
+default initial state and is known to also guarantee integrity.
+The name KIP references the compatible Keyful Identity Protocol,
+which may or may not develop independently of GS2-SXOVER-PLUS.</t>
+
+</section>
+
+<section title="Initial Round-trip Optimisation" anchor="init-optimal">
+
+<t>This section introduces an optimisation that MUST be accepted by
+servers, and MAY be sent by clients.  In addition, the server MAY use
+it in response to optimised messages to clients which MUST then accept
+it.</t>
+
+<t>Normally, the C2S-Init, S2C-Init, C2S-Cont and S2C-Cont messages are
+all placed in a single GSS-API or SASL message, with encryption and headers
+applied as dictated for each occasion.  The optimisation described here
+concatenates an opportunistic C2S-Cont to C2S-Init, and upon acceptance
+of the opportunistic attempt the server sends not only a S2C-Init, but
+also the accepting S2C-Cont.</t>
+
+<t>Encryption is applied to the GS2-SXOVER-PLUS messages before they are
+concatenated.  The header is applied after concatenation.</t>
+
+<t>The Counter values used in case of success or failure of the opportunistic attempt are:
+<figure><artwork><![CDATA[
+     Message   |  Counter on success  |  Counter on failure
+     ----------+----------------------+--------------------
+     C2S-Init  |  inictr              |  inictr
+     C2S-Cont  |  inictr + 2          |  inictr + 2
+     S2C-Init  |  inictr + 1          |  inictr + 1
+     S2C-Cont  |  inictr + 3          |  (message absent)
+     next...   |  inictr + 4,5,6...   |  inictr + 3,4,5...
+]]></artwork></figure>
+or, in words, the counter is not incremented when failure causes the
+S2C-Init to not be sent.  This is reflected in the next messages, which
+would start with another attempted C2S-Cont, and normal counting commences
+from that point.</t>
+
+<t>The use of this pattern is that a mechanism may be tried immediately,
+without awaiting the mechanism list.  Very often, clients will be setup
+to validate using a particular mechanism, or they may have learnt from
+a prior exchange.  This is particularly useful because traffic concentrates
+at the home realm, which usually leads to a stable mechanism list.</t>
+
+</section>
+
+<section title="Initial Header for GSS-API" anchor="mech2gssapi">
+
+<t>The header to use for GSS-API is standardised as a
+Mechanism-Independent Token Format [Section 3.1 of <xref target="RFC2743"/>]
+and prefixed to the initial token of a GSS-API context establishment
+sequence, incorporating the object identifier
+1.3.6.1.4.1.44469.666.5081.1 (TBD:GSSOID)
+to identify GS2-SXOVER-PLUS.  When this object identifier is supplied to
+the call GSS_Inquire_SASLname_for_mech [Section 10 of <xref target="RFC5801"/>],
+the output reads "GS2-SXOVER-PLUS" (without the quotes).</t>
+
+<t>Following the header is a GSS-API variant of C2S-Init, which prefixes
+an authorization identity, interpreted as defined in the GS2 header for SASL.
+The structure after the header in ASN.1 notation is:
+<figure><artwork><![CDATA[
+GSS-SXOVER-Init ::= SEQUENCE {
+  gs2-authzid  IA5String,
+  c2s-init     C2S-Init
+}
+]]></artwork></figure></t>
+
+<t>The annotated bytes are shown below:
+<figure><artwork><![CDATA[
+   60 02 ...length...   -- [APPLICATION 0] IMPLICIT SEQUENCE { ... }
+      -- OBJECT IDENTIFIER 1.3.6.1.4.1.44469.666.5081.1 (TBD:GSSOID)
+      06 ...length... 2b 06 01 04 01 44469 TBD:666 TBD:5081 01  -- OBJECT IDENTIFIER
+      -- GSS-SXOVER-Init
+      30 ...length...  -- SEQUENCE { ... }
+         ...
+]]></artwork></figure></t>
+
+<t>The mapping of GS2-SXOVER-PLUS into GSS-API is less natural
+than into SASL, because it references SASL mechanisms.  This is not a
+strict problem however, and implementers MAY provide GS2-SXOVER-PLUS
+as a GSS-API mechanism.  The absense of a realm name in the generic parts
+of the protocol may however lead to difficulties routing.</t>
+
+<t>The function GSS_Inquire_SASLname_for_mech
+[Section 10 of <xref target="RFC5801"/>]
+maps the aforementioned object identifier for the GSS-API mechanism
+to the name "GS2-SXOVER-PLUS" (without quotes).</t>
+
+</section>
+
+<section title="Initial Header for SASL" anchor="mech2sasl">
+
+<t>The header to use for SASL is the gs2-header <xref target="RFC5801"/>
+with a few extra constraints:
+constrained than its general form, namely:
+<list style="hanging" hangIndent="6">
+<t hangText="gs2-nonstd-flag"> is absent;</t>
+<t hangText="gs2-cb-flag"> MUST NOT be "y" or "n" because
+	channel binding is required; the only remaining general form is
+	therefore ("p=" cb-name); a foreign server MUST interpret this
+	flag and relay the appropriate channel binding information through
+	its Diameter backend;</t>
+<t hangText="gs2-authzid"> is used for routing of C2S-Init to the Diameter
+	server of the authoritative backend realm.
+	This field MUST contain at least one AT symbol
+	U+0040.  The domain name for the backend is mentioned after the
+	last AT symbol.  Anything preceding the AT symbol is interpreted
+	by the local realm, and MAY be used for realm-internal routing to
+	a more specific Diameter backend service node, but identification
+	is done within the realm by the inner SASL layer, and the
+	foreign server MUST NOT rely on text before the last AT symbol.</t>
+</list></t>
+
+<t>As an example, the gs2-header targeting a realm "example.com" and
+channel binding through tls-unique could be
+<figure><artwork><![CDATA[
+p=tls-unique,@example.com,
+]]></artwork></figure>
+or, when example.com uses internal GS2-SXOVER-PLUS routing to a service node
+named +idp+sxover it might be
+<figure><artwork><![CDATA[
+p=tls-unique,+idp+sxover@example.com,
+]]></artwork></figure>
+In both cases, the last comma would be immediately followed by the DER-encoded
+S2C-Init structure.  Since SASL tokens are always carried over binary
+channels, there is no use in continuing the message in a textual form.</t>
+
+</section>
+
+</section>
+
+<section title="AVP Definitions for SASL in Diameter" anchor="spec.avps">
+
+<t>SASL messages in Diameter use a number of
+AVPs [Section 4 of <xref target="RFC6733"/>] that are
+combined to relay SASL to an authentication realm.</t>
+
+<t>These AVPs are added to the set that is used with the
+Network Access Server application <xref target="RFC7155"/>,
+and can therefore be used in
+AA-Request and AA-Answer messages.  On top of that, the
+SASL-Mechanism AVP may also occur in a Capabilities
+Exchange Answer.  The User-Name AVP MUST be supplied in
+a successful AA-Answer to inform the server about the user name
+that the backend decided on; the server MAY send a hint
+requesting a value in the User-Name AVP in the AA-Request.</t>
+
+<section title="SASL-Mechanism" anchor="spec.avps.mech">
+
+<t>The SASL-Mechanism AVP has AVP Code TBD0.  This
+specification only uses the mechanism name GS2-SXOVER-PLUS as a
+value for this AVP.  It MUST be included in the first
+message of an GS2-SXOVER-PLUS exchange sent to the home realm,
+and it SHOULD be verified by the home realm upon
+reception.  Its purpose is mostly to distinguish this
+specification from potential future specifications to
+encapsulate SASL in Diameter.</t>
+
+<t>Though not used in this specification, this AVP
+may also be supplied from the home realm to the Diameter
+client to hold a space-separated list of SASL mechanisms.</t>
+
+</section>
+
+<section title="SASL-Token" anchor="spec.avps.token">
+
+<t>The SASL-Token AVP has AVP Code TBD1.  SASL
+requires distinction between empty and absent tokens;
+absent SASL tokens are represented by absence of the
+SASL-Token AVP and empty SASL tokens are represented
+as a present SASL-Token AVP with zero content bytes.</t>
+
+</section>
+
+<section title="SASL-Channel-Binding" anchor="spec.avps.chanbind">
+
+<t>The SASL-Channel-Binding AVP has AVP Code TBD2.  It
+MUST appear along the first SASL-Token AVP for a
+Network Access session if the SASL-Mechanism ends in
+-PLUS.</t>
+
+<t>This AVP may occur more than once, to indicate
+support of multiple forms of channel binding.  Note
+however that all mechanisms suitable for Diameter
+relaying use the GS2 bridge <xref target="RFC5056"/>
+in which case the channel binding name to pass along in
+this message can be derived.</t>
+
+<t>When the client connects to the foreign service over
+TLS, the tls-unique form <xref target="RFC5929"/>
+of channel binding is RECOMMENDED.
+Specific foreign servers may however be exempted by the
+home realm.</t>
+
+<t>The contents of this AVP concatenates two values:
+<list style="hanging" hangIndent="6">
+<t hangText="name">is the standard name of the channel
+	binding information, followed by a zero-valued
+	byte.</t>
+<t hangText="value">contains the bytes of the channel
+	binding information.</t>
+</list></t>
+
+<t>Normally, channel binding information should
+be sourced from the underlying communications channel, but
+this information is not available to a SASL backend running Diameter.
+To enable channel binding between the end points, the foreign
+server incorporates the channel binding information that the
+client can use in its connection to the foreign server.  This
+is useful to mitigate replay attacks, which is why its use
+is RECOMMENDED.</t>
+
+</section>
+
+</section>
+
+<section title="Diameter Message Requirements for GS2-SXOVER-PLUS" anchor="spec.diameter">
+
+<t>This section explains how the various GS2-SXOVER-PLUS messages
+are forwarded over Diameter by the foreign server.  The foreign
+server is connected to the SASL client, usually over a TLS connection,
+and relays requests over Diameter, usually over SCTP with DTLS.</t>
+
+<t>Diameter servers provide success and failure responses, based on
+the corresponding final results from a SASL service that they in turn use.  
+When no such final result comes from a Diameter request, a challenge
+will instead be produced over Diameter, holding a SASL challenge token
+from the server.</t>
+
+<section title="C2S-Init Requests over Diameter" anchor="c2s-init-diam">
+
+<t>To send C2S-Init, possibly including the C2S-Cont that the optimisation
+adds, the Diameter client MUST include at least the following AVPs in an
+AA-Request [Section 3.1 of <xref target="RFC7155"/>]:
+<list style="hanging" hangIndent="6">
+<t hangText="Realm">is the client's requested realm,
+	replicated here for routing purposes;
+	GS2-SXOVER-PLUS provides this value in the gs2-header's
+	authorization identity field;</t>
+<t hangText="SASL-Mechanism">is set to the fixed string GS2-SXOVER-PLUS;</t>
+<t hangText="SASL-Token">is set to the C2S-Init and optional C2S-Cont as it arrived from the SASL client;</t>
+<t hangText="SASL-Channel-Binding">is set to the channel binding information for the connection in which the SASL client attempts authentication, adhering to the channel binding mechanism named in the gs2-header in the SASL-Token.</t>
+</list></t>
+
+<t>It is possible to extend the message with more AVPs if the client and
+server have agreed on this, perhaps as a result of capability negotiation
+during Diameter connection setup.</t>
+
+<t>The C2S-Init Request is likely to
+hold other Diameter AVPs for general housekeeping of Diameter in
+general and the NAS application, such as Session-Id.
+Though User-Name and User-Password would be sent with password-based
+Diameter mechanisms, they are not required in C2S-Init messages, but
+they MAY be sent with empty contents to accommodate software and the
+RECOMMENDED status of the AVPs in the AA-Request, in which case they
+MUST be ignored on reception.</t>
+
+</section>
+
+<section title="S2C-Init Responses over Diameter" anchor="s2c-init-diam">
+
+<t>The Diameter server serves as a SASL server to which the foreign server
+relays requests.  To this end, the Diameter server responds with acceptance,
+denial or a further challenge.  Acceptance and denial are used for the
+corresponding SASL outcomes, the further challenge also matches logically.</t>
+
+<t>When the SASL server responds with S2C-Init over Diameter, the Diameter
+server MUST include at least the following AVPs in a successful
+AA-Answer [Section 3.2. of <xref target="RFC7155"/>]:
+<list style="hanging" hangIndent="6">
+<t hangText="User-Name">is set to the identity of the SASL client,
+	which resulted from the encapsulated SASL exchange and possibly further
+	authorisation processing in the SASL server; the name MUST NOT
+	add the realm name in this attribute; it is up to the foreign
+	server to assign it under the authoritative realm, possibly by
+	appending the last U+0040 (AT) character and its realm name
+	observed from the GS2 header sent in C2S-Init over Diameter.</t>
+<t hangText="Permissions">may be expected from a Diameter server, but
+	are considered optional for SASL over Diameter.  The reason is that
+	SASL focusses on authentication, not authorisation.  This
+	especially applies to realm crossover, where authentication is
+	a matter of the home realm and authorisation is, at least by
+	default, the prerogative of the foreign server implementing
+	its own resource with its own semantics.  Extensions to this
+	specification could however be made to use the infrastructure
+	proposed herein to also centralise the storage and/or processing
+	of resource access rights.</t>
+</list>
+If the SASL exchange requires continuation, then the AA-Answer represents
+a challenge to follow up, represented in the an AA-Answer that MUST
+include at least the following AVPs:
+<list style="hanging" hangIndent="6">
+<t hangText="Result-Code">is set to the value DIAMETER_MULTI_ROUND_AUTH;</t>
+<t hangText="SASL-Token">is set to the S2C-Init value;</t>
+<t hangText="State"> is set to server state to be reproduced in the
+	followup.</t>
+</list>
+If the AA-Answer is a final failure report, this MUST be represented in
+a failing Result-Code AVP.
+</t>
+
+</section>
+
+<section title="C2S-Cont Requests over Diameter" anchor="c2s-cont-diam">
+
+<t>The C2S-Cont message is any further message that the SASL client passes
+to the foreign server.  It is forwarded as a Diameter
+AA-Request [Section 3.1 of <xref target="RFC7155"/>] which MUST
+contain at least the following AVP:
+<list style="hanging" hangIndent="6">
+<t hangText="SASL-Token">is set to the token from the SASL client.</t>
+</list></t>
+
+<t>The C2S-Cont Request MUST NOT contain AVPs for
+SASL-Mechanism or SASL-Channel-Binding.  It is however likely to
+hold other Diameter AVPs for general housekeeping of Diameter in
+general and the NAS application, such as Session-Id and State AVPs.
+Though User-Password would be sent with password-based mechanisms,
+it is not required in C2S-Cont messages, but it MAY be sent with
+empty contents to accommodate software and the RECOMMENDED status
+of the AVP, in which case it MUST be ignored on reception.</t>
+
+</section>
+
+<section title="S2C-Cont Responses over Diameter" anchor="s2c-cont-diam">
+
+<t>The S2C-Cont Response message may inform the Diameter client of success,
+failure or a further challenge.  It is transmitted over Diameter as a
+Diameter AA-Answer [Section 3.2 of <xref target="RFC7155"/>]
+message, with the customary Result-Code interpretations.</t>
+
+<t>Processing of these Diameter messages is the same as for S2C-Init,
+with the exception that the SASL-Token, if it is present, is not
+interpreted as S2C-Init but as S2C-Cont.</t>
+
+</section>
+
+</section>
+
+<section title="Running Diameter as a SASL Backend" anchor="run">
+
+<t>Following are a few practical considerations in relation
+to the Diameter connectivity for SASL.</t>
+
+<section title="Diameter is an SCTP service" anchor="run.sctp">
+
+<t>Diameter is primarily an SCTP-based protocol
+<xref target="RFC6733"/>,
+for reasons of scalabaility and efficiency.  SASL Diameter
+benefits from these properties and embraces the SCTP carrier.
+Operating system support for SCTP is wide-spread, but
+parts of network infrastructure may not support it, and that
+may cause implementations to add a fallback to more traditional
+protocols.  Standards offer two options for doing this.</t>
+
+<t>Diameter can fallback to run over TCP, which is mostly
+of use to client-only machines, but then sacrifices several
+benefits of the SCTP carrier.
+SASL Diameter embeddings typically involve
+no client systems, so this option is NOT RECOMMENDED.</t>
+
+<t>SCTP may be run over a UDP transport using port 9899
+<xref target="RFC6951"/>, which does not
+sacrifice much; it only inserts a UDP header
+before each message.  This is a reasonable expectation
+of foreign servers as well as home realms, so this additional
+option is RECOMMENDED for situations where a fallback
+for plain SCTP is desired.  It is standardised as a socket
+option SCTP_REMOTE_UDP_ENCAPS_PORT, and only involves a small
+repetition in code, with a minor change between the
+attempts.</t>
+
+</section>
+
+<section title="Reliance on DANE and DNSSEC" anchor="run.dnssec">
+
+<t>Diameter always involves the use of TLS, but there is a number
+of choices concerning the validation of connections through DNSSEC
+and DANE.  It is the home realm's prerogative what level of protection
+it upholds for its client identities, but any foreign server can
+choose to raise the bar by setting a minimum standard.</t>
+
+<t>DNSSEC offers a protection mechanism for the _diameter._sctp
+SRV records that lead to the Diameter host and its port for the home
+realm.  This does not protect against forged IP addresses, port
+mappings or routing.  To protect against this as well, a TLSA record
+for the service host and port, along with the _sctp protocol label,
+can be used as specified for DANE <xref target="RFC6698"/>.
+This use of DNSSEC and DANE is RECOMMENDED.</t>
+
+<t>Home realms that choose to be light on such measures risk that
+identities are forged, in spite of their use of TLS.  Foreign
+servers MAY choose to reject such home realms, or alternatively be
+more inquisitive about the certificates used.</t>
+
+</section>
+
+</section>
+
+<section title="Security Considerations">
+
+<t>The SASL mechanism GS2-SXOVER-PLUS separates the authentication of
+a foreign identity into its realm and the username underneath it.  The
+realm is authenticated by the relying server, such as the proposed
+foreign server, whereas the username is obtained from a backend realm
+server that is known to be responsible for that realm.</t>
+
+<t>From the perspective of the foreign server, assurance of an identity
+is the vital aspect of the GS2-SXOVER-PLUS flow that it relays over Diameter.
+Through TLS or DTLS, with DNSSEC and DANE to validate the certificate it
+uses, the link from a realm (which is read as a domain name) to the Diameter
+connection can be verified, so the relying server can be certain about the
+realm under which the backend connection resides.  By receiving a response
+over that connection to a known-authoritative server for the realm, the
+username can also be trusted.  The relying server continues to treat the
+username and realm as a pair the for identification of the user.</t>
+
+<t>Channel binding is normally limited to two parties only, and forwarding
+such information is not a trivial idea.  The fact that the forwarding
+connection is encrypted, and known to lead to an authoritative server for
+a claimed realm does help.  The intermediate server relies on proper
+authentication, and has no interest in bypassing authentication, and it
+would be doing that by adopting channel binding information from
+anywhere else.</t>
+
+<t>From the perspective of the client and the home realm, the
+safety of the SASL credentials is paramount.  When addressing a
+foreign server, which is not part of the home realm, clients
+therefore MUST NOT rely on mechanisms that might leak credentials.
+Two mechanisms that are safe to use are ANONYMOUS, which passes no
+credentials and assigns no rights, and GS2-SXOVER-PLUS, which
+applies end-to-end encryption to another SASL mechanism that may or
+may not be secure.</t>
+
+<t>The GS2-SXOVER-PLUS mechanism uses channel binding to ensure that
+the authentication is specific to a stream.  The level to which this is
+secure depends on the channel binding mechanism.  Therefore, in spite
+of end-to-end encryption, most use cases will want a secure carrier
+such as TLS between the client and foreign server.</t>
+
+</section>
+
+<section title="IANA Considerations">
+
+<t>This specification defines three AVP Codes for use with Diameter.
+IANA registers the following AVP Codes for them in the
+"Authentication, Authorization, and Accounting (AAA) Parameters" registry:
+<figure><artwork><![CDATA[
+AVP Code | Attribute Name       | Reference
+---------+----------------------+------------
+TBD0     | SASL-Mechanism       | (this spec)
+TBD1     | SASL-Token           | (this spec)
+TBD2     | SASL-Channel-Binding | (this spec)
+]]></artwork></figure></t>
+
+</section>
+
+</middle>
+
+<back>
+
+<references title="Normative References">
+<!--
+<?rfc include="reference.RFC.2616.xml"?> OBSOLETED BY 7230-5
+-->
+<?rfc include="reference.RFC.2743.xml"?>
+<!--
+<?rfc include="reference.RFC.2744.xml"?>
+-->
+<?rfc include="reference.RFC.3961.xml"?>
+<!--
+<?rfc include="reference.RFC.4103.xml"?>
+-->
+<!--
+<?rfc include="reference.RFC.4120.xml"?>
+<?rfc include="reference.RFC.4559.xml"?>
+-->
+<?rfc include="reference.RFC.4422.xml"?>
+<?rfc include="reference.RFC.5056.xml"?>
+<!--
+<?rfc include="reference.RFC.5554.xml"?>
+<?rfc include="reference.RFC.5746.xml"?>
+-->
+<?rfc include="reference.RFC.5801.xml"?>
+<?rfc include="reference.RFC.5929.xml"?>
+<!--
+<?rfc include="reference.RFC.6595.xml"?>
+-->
+<?rfc include="reference.RFC.6698.xml"?>
+<?rfc include="reference.RFC.6733.xml"?>
+<?rfc include="reference.RFC.6951.xml"?>
+<?rfc include="reference.RFC.7155.xml"?>
+<!--
+<?rfc include="reference.RFC.7235.xml"?>
+<?rfc include="reference.RFC.7615.xml"?>
+<?rfc include="reference.RFC.7627.xml"?>
+<?rfc include="reference.RFC.2617.xml"?>
+-->
+<!--
+<reference title="RESTful" href="http://restcookbook.com/HTTP%20Methods/put-vs-post/"/>
+-->
+</references>
+
+<!-- <references title="Informative References"> -->
+<!-- <?rfc include="reference.RFC.4505.xml"?> -->
+<!-- <?rfc include="reference.RFC.4616.xml"?> -->
+<!--
+<?rfc include="reference.RFC.5785.xml"?>
+-->
+<!-- <?rfc include="reference.RFC.5802.xml"?> -->
+<!-- <?rfc include="reference.RFC.7804.xml"?> -->
+<!--
+<?rfc include="reference.I-D.vanrein-dnstxt-krb1.xml"?>
+-->
+<!-- </references> -->
+
+<!-- Possible ZEAL
+<section title="Diameter Message Examples" anchor="examples">
+
+<t>This section is non-normative.  It shows a number of examples of
+SASL exchanges over Diameter.</t>
+
+</section>
+-->
+
+<section title="Acknowledgements" anchor="ack">
+
+<t>Thanks to Nico Williams for input on the GS2 bridge and Channel Binding.</t>
+
+</section>
+
+</back>
+
+</rfc>
